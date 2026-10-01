@@ -1,0 +1,14 @@
+Program,Pooled Z,FDR,Study direction agreement,FDR without GSE111974,External directional FDR
+Estrogen response early,-3.14,0.049,12/13,0.248,0.359
+Epithelial mesenchymal transition,-3.13,0.049,10/13,0.295,0.359
+UV response up,-3.01,0.049,10/13,0.267,0.541
+Apoptosis,-2.92,0.049,10/13,0.248,0.359
+Ciliary motility,+0.16,0.958,7/13,0.703,0.887
+NK cytotoxic,-1.64,0.169,10/13,0.575,0.964
+Myeloid lineage,-1.92,0.127,7/13,0.591,0.964
+T cell lineage,-1.93,0.127,9/13,0.450,0.974
+Epithelial lineage,+2.33,0.071,8/13,0.584,0.874
+Stromal lineage,-0.44,0.787,9/13,0.963,0.654
+Decidualization,-1.94,0.127,8/13,0.371,0.359
+Apical junction,-2.78,0.052,10/13,0.298,0.359
+IL6–JAK–STAT3 signaling,-1.99,0.127,10/13,0.433,0.544

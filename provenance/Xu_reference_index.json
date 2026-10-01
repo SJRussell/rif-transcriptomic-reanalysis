@@ -1,0 +1,28 @@
+{
+  "command": [
+    "STAR",
+    "--runMode",
+    "genomeGenerate",
+    "--runThreadN",
+    "8",
+    "--genomeDir",
+    "<cluster_scratch>/subtypes/reference/STAR_GRCh38_gencode49",
+    "--genomeFastaFiles",
+    "<cluster_project>/ref/gencode_human/GRCh38.primary_assembly.genome.fa",
+    "--sjdbGTFfile",
+    "<cluster_scratch>/subtypes/reference/gencode.v49.primary_contigs.gtf",
+    "--sjdbOverhang",
+    "149",
+    "--limitGenomeGenerateRAM",
+    "60000000000",
+    "--outFileNamePrefix",
+    "<cluster_scratch>/subtypes/logs/index_"
+  ],
+  "genome": "<cluster_project>/ref/gencode_human/GRCh38.primary_assembly.genome.fa",
+  "genome_sha256": "e49b92b3e4f321bf254c042f25b726d9931c4d74c7523e8b6bb530e63b0cfd4b",
+  "annotation": "<cluster_scratch>/subtypes/reference/gencode.v49.primary_contigs.gtf",
+  "annotation_sha256": "ff32fd55c6799b3b94fe10aa17b2b5d4da952fa1de12fe44afadf32e949ec914",
+  "annotation_lines_retained": 7750159,
+  "annotation_lines_excluded": 0,
+  "completed_utc": "2026-09-09T00:41:13.954800+00:00"
+}

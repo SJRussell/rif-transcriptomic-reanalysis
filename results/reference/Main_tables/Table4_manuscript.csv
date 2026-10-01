@@ -1,0 +1,4 @@
+Assignment,RIF,Control,Odds ratio,95% CI,p
+RIF-I,12/69,12/57,0.84,0.36–1.96,0.673
+RIF-M,13/69,10/57,1.32,0.52–3.34,0.556
+Either assignment,25/69,22/57,1.05,0.52–2.12,0.896

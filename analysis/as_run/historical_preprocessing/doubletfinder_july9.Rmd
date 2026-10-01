@@ -1,0 +1,1504 @@
+---
+title: "DoubletFinder"
+output: html_notebook
+---
+
+LOAD LIBRARIES
+```{r}
+library(tidyverse)
+library(dplyr)
+library(Seurat)
+library(DoubletFinder)
+library(scCustomize)
+library(R.utils)
+library(Matrix)
+```
+
+Per sample run: GSE183837_con1
+```{r}
+GSE183837_con1<-readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_con1.RDS")
+GSE183837_con1$id <- "con1"
+GSE183837_con1$sample <- "Control"
+```
+
+```{r}
+DefaultAssay(GSE183837_con1) <- "RNA"
+DefaultLayer(GSE183837_con1[["RNA"]]) <- "counts"
+
+```
+
+```{r}
+GSE183837_con1 <- NormalizeData(GSE183837_con1)
+GSE183837_con1 <- FindVariableFeatures(GSE183837_con1, selection.method = "vst", nfeatures = 2000)
+GSE183837_con1 <- ScaleData(GSE183837_con1)
+GSE183837_con1 <- RunPCA(GSE183837_con1)
+GSE183837_con1 <- RunUMAP(GSE183837_con1, dims = 1:15)
+```
+
+```{r}
+sweep.res <- paramSweep(GSE183837_con1, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+# View top pK (you can visualize or just print top rows)
+head(bcmvn[order(bcmvn$BCmetric, decreasing = TRUE), ])
+
+```
+
+Determine the highest BCmetric to select optimal pK value
+```{r, fig.width=12}
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+```
+```{r}
+# If you have clusters:
+# annotations <- GSE183837_con1@meta.data$seurat_clusters
+# homotypic.prop <- modelHomotypic(annotations)
+# If not clustered yet, set to 0:
+homotypic.prop <- 0
+
+nExp_poi <- round(0.05 * nrow(GSE183837_con1@meta.data))  # Adjust the rate if needed
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+```
+
+Find doublets
+```{r}
+GSE183837_con1 <- doubletFinder(
+  GSE183837_con1,
+  PCs = 1:10,
+  pN = 0.25,
+  pK = 0.29,
+  nExp = nExp_poi,
+  reuse.pANN = NULL,
+  sct = FALSE
+)
+
+# Second round with adjusted expected doublets
+GSE183837_con1 <- doubletFinder(
+  GSE183837_con1,
+  PCs = 1:10,
+  pN = 0.25,
+  pK = 0.29,
+  nExp = nExp_poi.adj,
+  reuse.pANN = paste0("pANN_0.25_0.29_", nExp_poi),
+  sct = FALSE
+)
+
+```
+
+Remove doublets
+```{r}
+# Set the name of your doublet classification column
+doublet_col <- "DF.classifications_0.25_0.29_364"
+
+# Get the names of singlet cells
+singlet_cells <- rownames(GSE183837_con1@meta.data)[
+  GSE183837_con1@meta.data[[doublet_col]] == "Singlet"
+]
+
+# Subset manually using cell names
+GSE183837_con1_singlets <- subset(GSE183837_con1, cells = singlet_cells)
+
+saveRDS(GSE183837_con1_singlets, "GSE183837_con1_singlets_july9.rds")
+
+```
+
+GSE183837_con2:
+```{r}
+GSE183837_con2 <- readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_con2.RDS")
+GSE183837_con2$id <- "con2"
+GSE183837_con2$sample <- "Control"
+
+DefaultAssay(GSE183837_con2) <- "RNA"
+DefaultLayer(GSE183837_con2[["RNA"]]) <- "counts"
+```
+
+```{r}
+GSE183837_con2 <- NormalizeData(GSE183837_con2)
+GSE183837_con2 <- FindVariableFeatures(GSE183837_con2, selection.method = "vst", nfeatures = 2000)
+GSE183837_con2 <- ScaleData(GSE183837_con2)
+GSE183837_con2 <- RunPCA(GSE183837_con2)
+GSE183837_con2 <- RunUMAP(GSE183837_con2, dims = 1:15)
+
+```
+
+```{r, fig.width=15}
+sweep.res <- paramSweep(GSE183837_con2, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+```
+
+```{r}
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE183837_con2@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+```
+
+```{r}
+GSE183837_con2 <- doubletFinder(
+  GSE183837_con2,
+  PCs = 1:10,
+  pN = 0.25,
+  pK = 0.01,
+  nExp = nExp_poi,
+  reuse.pANN = NULL,
+  sct = FALSE
+)
+
+GSE183837_con2 <- doubletFinder(
+  GSE183837_con2,
+  PCs = 1:10,
+  pN = 0.25,
+  pK = 0.01,
+  nExp = nExp_poi.adj,
+  reuse.pANN = paste0("pANN_0.25_0.01_", nExp_poi),
+  sct = FALSE
+)
+
+```
+```{r, fig.height=12}
+# Make sure the Seurat object is active
+DefaultAssay(GSE183837_con2) <- "RNA"
+
+# Copy the metadata column to a new feature slot so VlnPlot can access it
+GSE183837_con2[["pANN_score"]] <- GSE183837_con2@meta.data[["pANN_0.25_0.01_458"]]
+
+# Now plot it
+VlnPlot(
+  object = GSE183837_con2,
+  features = "pANN_score",
+  pt.size = 0.1
+)
+```
+
+```{r}
+# Make sure the Seurat object is active
+DefaultAssay(GSE183837_con2_singlets) <- "RNA"
+
+# Copy the metadata column to a new feature slot so VlnPlot can access it
+GSE183837_con2_singlets[["pANN_score"]] <- GSE183837_con2_singlets@meta.data[["pANN_0.25_0.01_458"]]
+
+# Now plot it
+VlnPlot(
+  object = GSE183837_con2_singlets,
+  features = "pANN_score",
+  pt.size = 0.1
+)
+```
+
+```{r}
+doublet_col <- "DF.classifications_0.25_0.01_305"
+
+singlet_cells <- rownames(GSE183837_con2@meta.data)[
+  GSE183837_con2@meta.data[[doublet_col]] == "Singlet"
+]
+
+GSE183837_con2_singlets <- subset(GSE183837_con2, cells = singlet_cells)
+
+saveRDS(GSE183837_con2_singlets, "GSE183837_con2_singlets_july9.rds")
+
+```
+
+GSE183837_con3
+```{r}
+GSE183837_con3 <- readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_con3.RDS")
+GSE183837_con3$id <- "con3"
+GSE183837_con3$sample <- "Control"
+
+DefaultAssay(GSE183837_con3) <- "RNA"
+DefaultLayer(GSE183837_con3[["RNA"]]) <- "counts"
+
+```
+
+```{r}
+GSE183837_con3 <- NormalizeData(GSE183837_con3)
+GSE183837_con3 <- FindVariableFeatures(GSE183837_con3, selection.method = "vst", nfeatures = 2000)
+GSE183837_con3 <- ScaleData(GSE183837_con3)
+GSE183837_con3 <- RunPCA(GSE183837_con3)
+GSE183837_con3 <- RunUMAP(GSE183837_con3, dims = 1:15)
+
+```
+
+```{r, fig.width=15}
+sweep.res <- paramSweep(GSE183837_con3, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+```
+
+```{r}
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE183837_con3@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+```
+
+```{r}
+GSE183837_con3 <- doubletFinder(
+  GSE183837_con3,
+  PCs = 1:10,
+  pN = 0.25,
+  pK = 0.01,
+  nExp = nExp_poi,
+  reuse.pANN = NULL,
+  sct = FALSE
+)
+
+GSE183837_con3 <- doubletFinder(
+  GSE183837_con3,
+  PCs = 1:10,
+  pN = 0.25,
+  pK = 0.01,
+  nExp = nExp_poi.adj,
+  reuse.pANN = paste0("pANN_0.25_0.01_", nExp_poi),
+  sct = FALSE
+)
+
+```
+
+```{r}
+doublet_col <- "DF.classifications_0.25_0.01_335"
+
+singlet_cells <- rownames(GSE183837_con3@meta.data)[
+  GSE183837_con3@meta.data[[doublet_col]] == "Singlet"
+]
+
+GSE183837_con3_singlets <- subset(GSE183837_con3, cells = singlet_cells)
+
+saveRDS(GSE183837_con3_singlets, file = "GSE183837_con3_singlets_july9.rds")
+
+```
+
+GSE183837_rif1
+```{r, fig.width=12}
+GSE183837_rif1 <- readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif1.RDS")
+GSE183837_rif1$id <- "rif1"
+GSE183837_rif1$sample <- "RIF"
+
+DefaultAssay(GSE183837_rif1) <- "RNA"
+DefaultLayer(GSE183837_rif1[["RNA"]]) <- "counts"
+
+GSE183837_rif1 <- NormalizeData(GSE183837_rif1)
+GSE183837_rif1 <- FindVariableFeatures(GSE183837_rif1)
+GSE183837_rif1 <- ScaleData(GSE183837_rif1)
+GSE183837_rif1 <- RunPCA(GSE183837_rif1)
+
+sweep.res <- paramSweep(GSE183837_rif1, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE183837_rif1@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE183837_rif1 <- doubletFinder(GSE183837_rif1, PCs = 1:10, pN = 0.25, pK = 0.17, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE183837_rif1 <- doubletFinder(GSE183837_rif1, PCs = 1:10, pN = 0.25, pK = 0.17, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.17_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.17_", nExp_poi.adj)
+singlet_cells <- rownames(GSE183837_rif1@meta.data)[GSE183837_rif1@meta.data[[doublet_col]] == "Singlet"]
+GSE183837_rif1_singlets <- subset(GSE183837_rif1, cells = singlet_cells)
+
+saveRDS(GSE183837_rif1_singlets, "GSE183837_rif1_singlets_july9.rds")
+
+```
+
+GSE183837_rif2
+```{r, fig.width=12}
+GSE183837_rif2 <- readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif2.RDS")
+GSE183837_rif2$id <- "rif2"
+GSE183837_rif2$sample <- "RIF"
+
+DefaultAssay(GSE183837_rif2) <- "RNA"
+DefaultLayer(GSE183837_rif2[["RNA"]]) <- "counts"
+
+GSE183837_rif2 <- NormalizeData(GSE183837_rif2)
+GSE183837_rif2 <- FindVariableFeatures(GSE183837_rif2)
+GSE183837_rif2 <- ScaleData(GSE183837_rif2)
+GSE183837_rif2 <- RunPCA(GSE183837_rif2)
+
+sweep.res <- paramSweep(GSE183837_rif2, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE183837_rif2@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE183837_rif2 <- doubletFinder(GSE183837_rif2, PCs = 1:10, pN = 0.25, pK = 0.1, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE183837_rif2 <- doubletFinder(GSE183837_rif2, PCs = 1:10, pN = 0.25, pK = 0.1, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.1_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.1_", nExp_poi.adj)
+singlet_cells <- rownames(GSE183837_rif2@meta.data)[GSE183837_rif2@meta.data[[doublet_col]] == "Singlet"]
+GSE183837_rif2_singlets <- subset(GSE183837_rif2, cells = singlet_cells)
+
+saveRDS(GSE183837_rif2_singlets, "GSE183837_rif2_singlets_july9.rds")
+
+```
+
+GSE183837_rif3
+```{r, fig.width=12}
+GSE183837_rif3 <- readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif3.RDS")
+GSE183837_rif3$id <- "rif3"
+GSE183837_rif3$sample <- "RIF"
+
+DefaultAssay(GSE183837_rif3) <- "RNA"
+DefaultLayer(GSE183837_rif3[["RNA"]]) <- "counts"
+
+GSE183837_rif3 <- NormalizeData(GSE183837_rif3)
+GSE183837_rif3 <- FindVariableFeatures(GSE183837_rif3)
+GSE183837_rif3 <- ScaleData(GSE183837_rif3)
+GSE183837_rif3 <- RunPCA(GSE183837_rif3)
+
+sweep.res <- paramSweep(GSE183837_rif3, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.075 * nrow(GSE183837_rif3@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE183837_rif3 <- doubletFinder(GSE183837_rif3, PCs = 1:10, pN = 0.25, pK = 0.1, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE183837_rif3 <- doubletFinder(GSE183837_rif3, PCs = 1:10, pN = 0.25, pK = 0.1, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.1_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.1_", nExp_poi.adj)
+singlet_cells <- rownames(GSE183837_rif3@meta.data)[GSE183837_rif3@meta.data[[doublet_col]] == "Singlet"]
+GSE183837_rif3_singlets <- subset(GSE183837_rif3, cells = singlet_cells)
+
+saveRDS(GSE183837_rif3_singlets, "GSE183837_rif3_singlets.rds")
+
+```
+
+GSE183837_rif4
+```{r, fig.width=15}
+GSE183837_rif4 <- readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif4.RDS")
+GSE183837_rif4$id <- "rif4"
+GSE183837_rif4$sample <- "RIF"
+
+DefaultAssay(GSE183837_rif4) <- "RNA"
+DefaultLayer(GSE183837_rif4[["RNA"]]) <- "counts"
+
+GSE183837_rif4 <- NormalizeData(GSE183837_rif4)
+GSE183837_rif4 <- FindVariableFeatures(GSE183837_rif4)
+GSE183837_rif4 <- ScaleData(GSE183837_rif4)
+GSE183837_rif4 <- RunPCA(GSE183837_rif4)
+
+sweep.res <- paramSweep(GSE183837_rif4, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE183837_rif4@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE183837_rif4 <- doubletFinder(GSE183837_rif4, PCs = 1:10, pN = 0.25, pK = 0.16, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE183837_rif4 <- doubletFinder(GSE183837_rif4, PCs = 1:10, pN = 0.25, pK = 0.16, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.16_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.16_", nExp_poi.adj)
+singlet_cells <- rownames(GSE183837_rif4@meta.data)[GSE183837_rif4@meta.data[[doublet_col]] == "Singlet"]
+GSE183837_rif4_singlets <- subset(GSE183837_rif4, cells = singlet_cells)
+
+saveRDS(GSE183837_rif4_singlets, "GSE183837_rif4_singlets_july9.rds")
+
+```
+
+GSE183837_rif5
+```{r, fig.width=15}
+GSE183837_rif5 <- readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif5.RDS")
+GSE183837_rif5$id <- "rif5"
+GSE183837_rif5$sample <- "RIF"
+
+DefaultAssay(GSE183837_rif5) <- "RNA"
+DefaultLayer(GSE183837_rif5[["RNA"]]) <- "counts"
+
+GSE183837_rif5 <- NormalizeData(GSE183837_rif5)
+GSE183837_rif5 <- FindVariableFeatures(GSE183837_rif5)
+GSE183837_rif5 <- ScaleData(GSE183837_rif5)
+GSE183837_rif5 <- RunPCA(GSE183837_rif5)
+
+sweep.res <- paramSweep(GSE183837_rif5, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE183837_rif5@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE183837_rif5 <- doubletFinder(GSE183837_rif5, PCs = 1:10, pN = 0.25, pK = 0.005, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE183837_rif5 <- doubletFinder(GSE183837_rif5, PCs = 1:10, pN = 0.25, pK = 0.005, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.005_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.005_", nExp_poi.adj)
+singlet_cells <- rownames(GSE183837_rif5@meta.data)[GSE183837_rif5@meta.data[[doublet_col]] == "Singlet"]
+GSE183837_rif5_singlets <- subset(GSE183837_rif5, cells = singlet_cells)
+
+saveRDS(GSE183837_rif5_singlets, "GSE183837_rif5_singlets_july9.rds")
+
+```
+
+GSE183837_rif6
+```{r, fig.width=15}
+GSE183837_rif6 <- readRDS("<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif6.RDS")
+GSE183837_rif6$id <- "rif6"
+GSE183837_rif6$sample <- "RIF"
+
+DefaultAssay(GSE183837_rif6) <- "RNA"
+DefaultLayer(GSE183837_rif6[["RNA"]]) <- "counts"
+
+GSE183837_rif6 <- NormalizeData(GSE183837_rif6)
+GSE183837_rif6 <- FindVariableFeatures(GSE183837_rif6)
+GSE183837_rif6 <- ScaleData(GSE183837_rif6)
+GSE183837_rif6 <- RunPCA(GSE183837_rif6)
+
+sweep.res <- paramSweep(GSE183837_rif6, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE183837_rif6@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE183837_rif6 <- doubletFinder(GSE183837_rif6, PCs = 1:10, pN = 0.25, pK = 0.3, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE183837_rif6 <- doubletFinder(GSE183837_rif6, PCs = 1:10, pN = 0.25, pK = 0.3, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.3_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.3_", nExp_poi.adj)
+singlet_cells <- rownames(GSE183837_rif6@meta.data)[GSE183837_rif6@meta.data[[doublet_col]] == "Singlet"]
+GSE183837_rif6_singlets <- subset(GSE183837_rif6, cells = singlet_cells)
+
+saveRDS(GSE183837_rif6_singlets, "GSE183837_rif6_singlets_july9.rds")
+
+```
+
+
+PRJNA1141235:
+con1_499
+```{r, fig.width=15}
+con1_499 <- readRDS("<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016499.RDS")
+con1_499$id <- "con1_499"
+con1_499$sample <- "Control"
+
+DefaultAssay(con1_499) <- "RNA"
+DefaultLayer(con1_499[["RNA"]]) <- "counts"
+
+con1_499 <- NormalizeData(con1_499)
+con1_499 <- FindVariableFeatures(con1_499)
+con1_499 <- ScaleData(con1_499)
+con1_499 <- RunPCA(con1_499)
+
+sweep.res <- paramSweep(con1_499, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(con1_499@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+con1_499 <- doubletFinder(con1_499, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+con1_499 <- doubletFinder(con1_499, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.02_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.02_", nExp_poi.adj)
+singlet_cells <- rownames(con1_499@meta.data)[con1_499@meta.data[[doublet_col]] == "Singlet"]
+con1_499_singlets <- subset(con1_499, cells = singlet_cells)
+
+saveRDS(con1_499_singlets, "con1_499_singlets_july9.rds")
+
+```
+
+con2_504
+```{r, fig.width=15}
+con2_504 <- readRDS("<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016504.RDS")
+con2_504$id <- "con2_504"
+con2_504$sample <- "Control"
+
+DefaultAssay(con2_504) <- "RNA"
+DefaultLayer(con2_504[["RNA"]]) <- "counts"
+
+con2_504 <- NormalizeData(con2_504)
+con2_504 <- FindVariableFeatures(con2_504)
+con2_504 <- ScaleData(con2_504)
+con2_504 <- RunPCA(con2_504)
+
+sweep.res <- paramSweep(con2_504, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(con2_504@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+con2_504 <- doubletFinder(con2_504, PCs = 1:10, pN = 0.25, pK = 0.3, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+con2_504 <- doubletFinder(con2_504, PCs = 1:10, pN = 0.25, pK = 0.3, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.3_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.3_", nExp_poi.adj)
+singlet_cells <- rownames(con2_504@meta.data)[con2_504@meta.data[[doublet_col]] == "Singlet"]
+con2_504_singlets <- subset(con2_504, cells = singlet_cells)
+
+saveRDS(con2_504_singlets, "con2_504_singlets_july9.rds")
+
+```
+
+rif1_494
+```{r, fig.width=15}
+rif1_494 <- readRDS("<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016494.RDS")
+rif1_494$id <- "rif1_494"
+rif1_494$sample <- "RIF"
+
+DefaultAssay(rif1_494) <- "RNA"
+DefaultLayer(rif1_494[["RNA"]]) <- "counts"
+
+rif1_494 <- NormalizeData(rif1_494)
+rif1_494 <- FindVariableFeatures(rif1_494)
+rif1_494 <- ScaleData(rif1_494)
+rif1_494 <- RunPCA(rif1_494)
+
+sweep.res <- paramSweep(rif1_494, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(rif1_494@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+rif1_494 <- doubletFinder(rif1_494, PCs = 1:10, pN = 0.25, pK = 0.25, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+rif1_494 <- doubletFinder(rif1_494, PCs = 1:10, pN = 0.25, pK = 0.25, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.25_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.25_", nExp_poi.adj)
+singlet_cells <- rownames(rif1_494@meta.data)[rif1_494@meta.data[[doublet_col]] == "Singlet"]
+rif1_494_singlets <- subset(rif1_494, cells = singlet_cells)
+
+saveRDS(rif1_494_singlets, "rif1_494_singlets_july9.rds")
+
+```
+
+rif2_501
+```{r, fig.width=15}
+rif2_501 <- readRDS("<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016501.RDS")
+rif2_501$id <- "rif2_501"
+rif2_501$sample <- "RIF"
+
+DefaultAssay(rif2_501) <- "RNA"
+DefaultLayer(rif2_501[["RNA"]]) <- "counts"
+
+rif2_501 <- NormalizeData(rif2_501)
+rif2_501 <- FindVariableFeatures(rif2_501)
+rif2_501 <- ScaleData(rif2_501)
+rif2_501 <- RunPCA(rif2_501)
+
+sweep.res <- paramSweep(rif2_501, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(rif2_501@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+rif2_501 <- doubletFinder(rif2_501, PCs = 1:10, pN = 0.25, pK = 0.29, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+rif2_501 <- doubletFinder(rif2_501, PCs = 1:10, pN = 0.25, pK = 0.29, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.29_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.29_", nExp_poi.adj)
+singlet_cells <- rownames(rif2_501@meta.data)[rif2_501@meta.data[[doublet_col]] == "Singlet"]
+rif2_501_singlets <- subset(rif2_501, cells = singlet_cells)
+
+saveRDS(rif2_501_singlets, "rif2_501_singlets_july9.rds")
+
+```
+
+GSE250130
+
+GSE250130_con1
+```{r, fig.width=15}
+GSE250130_con1 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con1.RDS")
+GSE250130_con1$id <- "GSE250130_con1"
+GSE250130_con1$sample <- "Control"
+
+DefaultAssay(GSE250130_con1) <- "RNA"
+DefaultLayer(GSE250130_con1[["RNA"]]) <- "counts"
+
+GSE250130_con1 <- NormalizeData(GSE250130_con1)
+GSE250130_con1 <- FindVariableFeatures(GSE250130_con1)
+GSE250130_con1 <- ScaleData(GSE250130_con1)
+GSE250130_con1 <- RunPCA(GSE250130_con1)
+
+sweep.res <- paramSweep(GSE250130_con1, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con1@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con1 <- doubletFinder(GSE250130_con1, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con1 <- doubletFinder(GSE250130_con1, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.02_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.02_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con1@meta.data)[GSE250130_con1@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con1_singlets <- subset(GSE250130_con1, cells = singlet_cells)
+
+saveRDS(GSE250130_con1_singlets, "GSE250130_con1_singlets_july9.rds")
+```
+
+GSE250130_con2
+```{r, fig.width=15}
+GSE250130_con2 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con2.RDS")
+GSE250130_con2$id <- "GSE250130_con2"
+GSE250130_con2$sample <- "Control"
+
+DefaultAssay(GSE250130_con2) <- "RNA"
+DefaultLayer(GSE250130_con2[["RNA"]]) <- "counts"
+
+GSE250130_con2 <- NormalizeData(GSE250130_con2)
+GSE250130_con2 <- FindVariableFeatures(GSE250130_con2)
+GSE250130_con2 <- ScaleData(GSE250130_con2)
+GSE250130_con2 <- RunPCA(GSE250130_con2)
+
+sweep.res <- paramSweep(GSE250130_con2, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.075 * nrow(GSE250130_con2@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con2 <- doubletFinder(GSE250130_con2, PCs = 1:10, pN = 0.25, pK = 0.24, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con2 <- doubletFinder(GSE250130_con2, PCs = 1:10, pN = 0.25, pK = 0.24, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.24_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.24_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con2@meta.data)[GSE250130_con2@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con2_singlets <- subset(GSE250130_con2, cells = singlet_cells)
+
+saveRDS(GSE250130_con2_singlets, "GSE250130_con2_singlets_july9.rds")
+```
+
+GSE250130_con3
+```{r, fig.width=15}
+GSE250130_con3 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con3.RDS")
+GSE250130_con3$id <- "GSE250130_con3"
+GSE250130_con3$sample <- "Control"
+
+DefaultAssay(GSE250130_con3) <- "RNA"
+DefaultLayer(GSE250130_con3[["RNA"]]) <- "counts"
+
+GSE250130_con3 <- NormalizeData(GSE250130_con3)
+GSE250130_con3 <- FindVariableFeatures(GSE250130_con3)
+GSE250130_con3 <- ScaleData(GSE250130_con3)
+GSE250130_con3 <- RunPCA(GSE250130_con3)
+
+sweep.res <- paramSweep(GSE250130_con3, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con3@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con3 <- doubletFinder(GSE250130_con3, PCs = 1:10, pN = 0.25, pK = 0.05, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con3 <- doubletFinder(GSE250130_con3, PCs = 1:10, pN = 0.25, pK = 0.05, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.05_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.05_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con3@meta.data)[GSE250130_con3@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con3_singlets <- subset(GSE250130_con3, cells = singlet_cells)
+
+saveRDS(GSE250130_con3_singlets, "GSE250130_con3_singlets_july9.rds")
+```
+
+GSE250130_con4
+```{r, fig.width=15}
+GSE250130_con4 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con4.RDS")
+GSE250130_con4$id <- "GSE250130_con4"
+GSE250130_con4$sample <- "Control"
+
+DefaultAssay(GSE250130_con4) <- "RNA"
+DefaultLayer(GSE250130_con4[["RNA"]]) <- "counts"
+
+GSE250130_con4 <- NormalizeData(GSE250130_con4)
+GSE250130_con4 <- FindVariableFeatures(GSE250130_con4)
+GSE250130_con4 <- ScaleData(GSE250130_con4)
+GSE250130_con4 <- RunPCA(GSE250130_con4)
+
+sweep.res <- paramSweep(GSE250130_con4, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con4@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con4 <- doubletFinder(GSE250130_con4, PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con4 <- doubletFinder(GSE250130_con4, PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.09_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.09_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con4@meta.data)[GSE250130_con4@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con4_singlets <- subset(GSE250130_con4, cells = singlet_cells)
+
+saveRDS(GSE250130_con4_singlets, "GSE250130_con4_singlets_july9.rds")
+```
+
+GSE250130_con5
+```{r, fig.width=15}
+GSE250130_con5 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con5.RDS")
+GSE250130_con5$id <- "GSE250130_con5"
+GSE250130_con5$sample <- "Control"
+
+DefaultAssay(GSE250130_con5) <- "RNA"
+DefaultLayer(GSE250130_con5[["RNA"]]) <- "counts"
+
+GSE250130_con5 <- NormalizeData(GSE250130_con5)
+GSE250130_con5 <- FindVariableFeatures(GSE250130_con5)
+GSE250130_con5 <- ScaleData(GSE250130_con5)
+GSE250130_con5 <- RunPCA(GSE250130_con5)
+
+sweep.res <- paramSweep(GSE250130_con5, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con5@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con5 <- doubletFinder(GSE250130_con5, PCs = 1:10, pN = 0.25, pK = 0.005, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con5 <- doubletFinder(GSE250130_con5, PCs = 1:10, pN = 0.25, pK = 0.005, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.005_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.005_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con5@meta.data)[GSE250130_con5@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con5_singlets <- subset(GSE250130_con5, cells = singlet_cells)
+
+saveRDS(GSE250130_con5_singlets, "GSE250130_con5_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_con6
+GSE250130_con6 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con6.RDS")
+GSE250130_con6$id <- "GSE250130_con6"
+GSE250130_con6$sample <- "Control"
+
+DefaultAssay(GSE250130_con6) <- "RNA"
+DefaultLayer(GSE250130_con6[["RNA"]]) <- "counts"
+
+GSE250130_con6 <- NormalizeData(GSE250130_con6)
+GSE250130_con6 <- FindVariableFeatures(GSE250130_con6)
+GSE250130_con6 <- ScaleData(GSE250130_con6)
+GSE250130_con6 <- RunPCA(GSE250130_con6)
+
+sweep.res <- paramSweep(GSE250130_con6, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con6@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con6 <- doubletFinder(GSE250130_con6, PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con6 <- doubletFinder(GSE250130_con6, PCs = 1:10, pN = 0.25, pK = 0.09, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.09_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.09_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con6@meta.data)[GSE250130_con6@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con6_singlets <- subset(GSE250130_con6, cells = singlet_cells)
+
+saveRDS(GSE250130_con6_singlets, "GSE250130_con6_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_con7
+GSE250130_con7 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con7.RDS")
+GSE250130_con7$id <- "GSE250130_con7"
+GSE250130_con7$sample <- "Control"
+
+DefaultAssay(GSE250130_con7) <- "RNA"
+DefaultLayer(GSE250130_con7[["RNA"]]) <- "counts"
+
+GSE250130_con7 <- NormalizeData(GSE250130_con7)
+GSE250130_con7 <- FindVariableFeatures(GSE250130_con7)
+GSE250130_con7 <- ScaleData(GSE250130_con7)
+GSE250130_con7 <- RunPCA(GSE250130_con7)
+
+sweep.res <- paramSweep(GSE250130_con7, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con7@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con7 <- doubletFinder(GSE250130_con7, PCs = 1:10, pN = 0.25, pK = 0.19, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con7 <- doubletFinder(GSE250130_con7, PCs = 1:10, pN = 0.25, pK = 0.19, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.19_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.19_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con7@meta.data)[GSE250130_con7@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con7_singlets <- subset(GSE250130_con7, cells = singlet_cells)
+
+saveRDS(GSE250130_con7_singlets, "GSE250130_con7_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_con8
+GSE250130_con8 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con8.RDS")
+GSE250130_con8$id <- "GSE250130_con8"
+GSE250130_con8$sample <- "Control"
+
+DefaultAssay(GSE250130_con8) <- "RNA"
+DefaultLayer(GSE250130_con8[["RNA"]]) <- "counts"
+
+GSE250130_con8 <- NormalizeData(GSE250130_con8)
+GSE250130_con8 <- FindVariableFeatures(GSE250130_con8)
+GSE250130_con8 <- ScaleData(GSE250130_con8)
+GSE250130_con8 <- RunPCA(GSE250130_con8)
+
+sweep.res <- paramSweep(GSE250130_con8, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con8@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con8 <- doubletFinder(GSE250130_con8, PCs = 1:10, pN = 0.25, pK = 0.19, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con8 <- doubletFinder(GSE250130_con8, PCs = 1:10, pN = 0.25, pK = 0.19, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.19_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.19_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con8@meta.data)[GSE250130_con8@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con8_singlets <- subset(GSE250130_con8, cells = singlet_cells)
+
+saveRDS(GSE250130_con8_singlets, "GSE250130_con8_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_con9
+GSE250130_con9 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con9.RDS")
+GSE250130_con9$id <- "GSE250130_con9"
+GSE250130_con9$sample <- "Control"
+
+DefaultAssay(GSE250130_con9) <- "RNA"
+DefaultLayer(GSE250130_con9[["RNA"]]) <- "counts"
+
+GSE250130_con9 <- NormalizeData(GSE250130_con9)
+GSE250130_con9 <- FindVariableFeatures(GSE250130_con9)
+GSE250130_con9 <- ScaleData(GSE250130_con9)
+GSE250130_con9 <- RunPCA(GSE250130_con9)
+
+sweep.res <- paramSweep(GSE250130_con9, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con9@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con9 <- doubletFinder(GSE250130_con9, PCs = 1:10, pN = 0.25, pK = 0.07, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con9 <- doubletFinder(GSE250130_con9, PCs = 1:10, pN = 0.25, pK = 0.07, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.07_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.07_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con9@meta.data)[GSE250130_con9@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con9_singlets <- subset(GSE250130_con9, cells = singlet_cells)
+
+saveRDS(GSE250130_con9_singlets, "GSE250130_con9_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_con10
+GSE250130_con10 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con10.RDS")
+GSE250130_con10$id <- "GSE250130_con10"
+GSE250130_con10$sample <- "Control"
+
+DefaultAssay(GSE250130_con10) <- "RNA"
+DefaultLayer(GSE250130_con10[["RNA"]]) <- "counts"
+
+GSE250130_con10 <- NormalizeData(GSE250130_con10)
+GSE250130_con10 <- FindVariableFeatures(GSE250130_con10)
+GSE250130_con10 <- ScaleData(GSE250130_con10)
+GSE250130_con10 <- RunPCA(GSE250130_con10)
+
+sweep.res <- paramSweep(GSE250130_con10, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con10@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con10 <- doubletFinder(GSE250130_con10, PCs = 1:10, pN = 0.25, pK = 0.01, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con10 <- doubletFinder(GSE250130_con10, PCs = 1:10, pN = 0.25, pK = 0.01, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.01_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con10@meta.data)[GSE250130_con10@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con10_singlets <- subset(GSE250130_con10, cells = singlet_cells)
+
+saveRDS(GSE250130_con10_singlets, "GSE250130_con10_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_con11
+GSE250130_con11 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con11.RDS")
+GSE250130_con11$id <- "GSE250130_con11"
+GSE250130_con11$sample <- "Control"
+
+DefaultAssay(GSE250130_con11) <- "RNA"
+DefaultLayer(GSE250130_con11[["RNA"]]) <- "counts"
+
+GSE250130_con11 <- NormalizeData(GSE250130_con11)
+GSE250130_con11 <- FindVariableFeatures(GSE250130_con11)
+GSE250130_con11 <- ScaleData(GSE250130_con11)
+GSE250130_con11 <- RunPCA(GSE250130_con11)
+
+sweep.res <- paramSweep(GSE250130_con11, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con11@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con11 <- doubletFinder(GSE250130_con11, PCs = 1:10, pN = 0.25, pK = 0.13, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con11 <- doubletFinder(GSE250130_con11, PCs = 1:10, pN = 0.25, pK = 0.13, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.13_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.13_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con11@meta.data)[GSE250130_con11@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con11_singlets <- subset(GSE250130_con11, cells = singlet_cells)
+
+saveRDS(GSE250130_con11_singlets, "GSE250130_con11_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_con12
+GSE250130_con12 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_con12.RDS")
+GSE250130_con12$id <- "GSE250130_con12"
+GSE250130_con12$sample <- "Control"
+
+DefaultAssay(GSE250130_con12) <- "RNA"
+DefaultLayer(GSE250130_con12[["RNA"]]) <- "counts"
+
+GSE250130_con12 <- NormalizeData(GSE250130_con12)
+GSE250130_con12 <- FindVariableFeatures(GSE250130_con12)
+GSE250130_con12 <- ScaleData(GSE250130_con12)
+GSE250130_con12 <- RunPCA(GSE250130_con12)
+
+sweep.res <- paramSweep(GSE250130_con12, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_con12@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_con12 <- doubletFinder(GSE250130_con12, PCs = 1:10, pN = 0.25, pK = 0.15, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_con12 <- doubletFinder(GSE250130_con12, PCs = 1:10, pN = 0.25, pK = 0.15, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.15_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.15_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_con12@meta.data)[GSE250130_con12@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_con12_singlets <- subset(GSE250130_con12, cells = singlet_cells)
+
+saveRDS(GSE250130_con12_singlets, "GSE250130_con12_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif1
+GSE250130_rif1 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif1.RDS")
+GSE250130_rif1$id <- "GSE250130_rif1"
+GSE250130_rif1$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif1) <- "RNA"
+DefaultLayer(GSE250130_rif1[["RNA"]]) <- "counts"
+
+GSE250130_rif1 <- NormalizeData(GSE250130_rif1)
+GSE250130_rif1 <- FindVariableFeatures(GSE250130_rif1)
+GSE250130_rif1 <- ScaleData(GSE250130_rif1)
+GSE250130_rif1 <- RunPCA(GSE250130_rif1)
+
+sweep.res <- paramSweep(GSE250130_rif1, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif1@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif1 <- doubletFinder(GSE250130_rif1, PCs = 1:10, pN = 0.25, pK = 0.28, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif1 <- doubletFinder(GSE250130_rif1, PCs = 1:10, pN = 0.25, pK = 0.28, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.28_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.28_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif1@meta.data)[GSE250130_rif1@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif1_singlets <- subset(GSE250130_rif1, cells = singlet_cells)
+
+saveRDS(GSE250130_rif1_singlets, "GSE250130_rif1_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif2
+GSE250130_rif2 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif2.RDS")
+GSE250130_rif2$id <- "GSE250130_rif2"
+GSE250130_rif2$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif2) <- "RNA"
+DefaultLayer(GSE250130_rif2[["RNA"]]) <- "counts"
+
+GSE250130_rif2 <- NormalizeData(GSE250130_rif2)
+GSE250130_rif2 <- FindVariableFeatures(GSE250130_rif2)
+GSE250130_rif2 <- ScaleData(GSE250130_rif2)
+GSE250130_rif2 <- RunPCA(GSE250130_rif2)
+
+sweep.res <- paramSweep(GSE250130_rif2, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif2@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif2 <- doubletFinder(GSE250130_rif2, PCs = 1:10, pN = 0.25, pK = 0.14, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif2 <- doubletFinder(GSE250130_rif2, PCs = 1:10, pN = 0.25, pK = 0.14, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.14_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.14_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif2@meta.data)[GSE250130_rif2@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif2_singlets <- subset(GSE250130_rif2, cells = singlet_cells)
+
+saveRDS(GSE250130_rif2_singlets, "GSE250130_rif2_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif3
+GSE250130_rif3 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif3.RDS")
+GSE250130_rif3$id <- "GSE250130_rif3"
+GSE250130_rif3$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif3) <- "RNA"
+DefaultLayer(GSE250130_rif3[["RNA"]]) <- "counts"
+
+GSE250130_rif3 <- NormalizeData(GSE250130_rif3)
+GSE250130_rif3 <- FindVariableFeatures(GSE250130_rif3)
+GSE250130_rif3 <- ScaleData(GSE250130_rif3)
+GSE250130_rif3 <- RunPCA(GSE250130_rif3)
+
+sweep.res <- paramSweep(GSE250130_rif3, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif3@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif3 <- doubletFinder(GSE250130_rif3, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif3 <- doubletFinder(GSE250130_rif3, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.02_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.02_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif3@meta.data)[GSE250130_rif3@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif3_singlets <- subset(GSE250130_rif3, cells = singlet_cells)
+
+saveRDS(GSE250130_rif3_singlets, "GSE250130_rif3_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif4
+GSE250130_rif4 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif4.RDS")
+GSE250130_rif4$id <- "GSE250130_rif4"
+GSE250130_rif4$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif4) <- "RNA"
+DefaultLayer(GSE250130_rif4[["RNA"]]) <- "counts"
+
+GSE250130_rif4 <- NormalizeData(GSE250130_rif4)
+GSE250130_rif4 <- FindVariableFeatures(GSE250130_rif4)
+GSE250130_rif4 <- ScaleData(GSE250130_rif4)
+GSE250130_rif4 <- RunPCA(GSE250130_rif4)
+
+sweep.res <- paramSweep(GSE250130_rif4, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif4@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif4 <- doubletFinder(GSE250130_rif4, PCs = 1:10, pN = 0.25, pK = 0.18, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif4 <- doubletFinder(GSE250130_rif4, PCs = 1:10, pN = 0.25, pK = 0.18, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.18_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.18_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif4@meta.data)[GSE250130_rif4@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif4_singlets <- subset(GSE250130_rif4, cells = singlet_cells)
+
+saveRDS(GSE250130_rif4_singlets, "GSE250130_rif4_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif5
+GSE250130_rif5 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif5.RDS")
+GSE250130_rif5$id <- "GSE250130_rif5"
+GSE250130_rif5$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif5) <- "RNA"
+DefaultLayer(GSE250130_rif5[["RNA"]]) <- "counts"
+
+GSE250130_rif5 <- NormalizeData(GSE250130_rif5)
+GSE250130_rif5 <- FindVariableFeatures(GSE250130_rif5)
+GSE250130_rif5 <- ScaleData(GSE250130_rif5)
+GSE250130_rif5 <- RunPCA(GSE250130_rif5)
+
+sweep.res <- paramSweep(GSE250130_rif5, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif5@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif5 <- doubletFinder(GSE250130_rif5, PCs = 1:10, pN = 0.25, pK = 0.18, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif5 <- doubletFinder(GSE250130_rif5, PCs = 1:10, pN = 0.25, pK = 0.18, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.18_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.18_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif5@meta.data)[GSE250130_rif5@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif5_singlets <- subset(GSE250130_rif5, cells = singlet_cells)
+
+saveRDS(GSE250130_rif5_singlets, "GSE250130_rif5_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif6
+GSE250130_rif6 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif6.RDS")
+GSE250130_rif6$id <- "GSE250130_rif6"
+GSE250130_rif6$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif6) <- "RNA"
+DefaultLayer(GSE250130_rif6[["RNA"]]) <- "counts"
+
+GSE250130_rif6 <- NormalizeData(GSE250130_rif6)
+GSE250130_rif6 <- FindVariableFeatures(GSE250130_rif6)
+GSE250130_rif6 <- ScaleData(GSE250130_rif6)
+GSE250130_rif6 <- RunPCA(GSE250130_rif6)
+
+sweep.res <- paramSweep(GSE250130_rif6, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif6@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif6 <- doubletFinder(GSE250130_rif6, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif6 <- doubletFinder(GSE250130_rif6, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.02_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.02_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif6@meta.data)[GSE250130_rif6@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif6_singlets <- subset(GSE250130_rif6, cells = singlet_cells)
+
+saveRDS(GSE250130_rif6_singlets, "GSE250130_rif6_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif7
+GSE250130_rif7 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif7.RDS")
+GSE250130_rif7$id <- "GSE250130_rif7"
+GSE250130_rif7$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif7) <- "RNA"
+DefaultLayer(GSE250130_rif7[["RNA"]]) <- "counts"
+
+GSE250130_rif7 <- NormalizeData(GSE250130_rif7)
+GSE250130_rif7 <- FindVariableFeatures(GSE250130_rif7)
+GSE250130_rif7 <- ScaleData(GSE250130_rif7)
+GSE250130_rif7 <- RunPCA(GSE250130_rif7)
+
+sweep.res <- paramSweep(GSE250130_rif7, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif7@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif7 <- doubletFinder(GSE250130_rif7, PCs = 1:10, pN = 0.25, pK = 0.3, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif7 <- doubletFinder(GSE250130_rif7, PCs = 1:10, pN = 0.25, pK = 0.3, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.3_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.3_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif7@meta.data)[GSE250130_rif7@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif7_singlets <- subset(GSE250130_rif7, cells = singlet_cells)
+
+saveRDS(GSE250130_rif7_singlets, "GSE250130_rif7_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif8
+GSE250130_rif8 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif8.RDS")
+GSE250130_rif8$id <- "GSE250130_rif8"
+GSE250130_rif8$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif8) <- "RNA"
+DefaultLayer(GSE250130_rif8[["RNA"]]) <- "counts"
+
+GSE250130_rif8 <- NormalizeData(GSE250130_rif8)
+GSE250130_rif8 <- FindVariableFeatures(GSE250130_rif8)
+GSE250130_rif8 <- ScaleData(GSE250130_rif8)
+GSE250130_rif8 <- RunPCA(GSE250130_rif8)
+
+sweep.res <- paramSweep(GSE250130_rif8, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif8@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif8 <- doubletFinder(GSE250130_rif8, PCs = 1:10, pN = 0.25, pK = 0.19, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif8 <- doubletFinder(GSE250130_rif8, PCs = 1:10, pN = 0.25, pK = 0.19, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.19_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.19_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif8@meta.data)[GSE250130_rif8@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif8_singlets <- subset(GSE250130_rif8, cells = singlet_cells)
+
+saveRDS(GSE250130_rif8_singlets, "GSE250130_rif8_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif9
+GSE250130_rif9 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif9.RDS")
+GSE250130_rif9$id <- "GSE250130_rif9"
+GSE250130_rif9$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif9) <- "RNA"
+DefaultLayer(GSE250130_rif9[["RNA"]]) <- "counts"
+
+GSE250130_rif9 <- NormalizeData(GSE250130_rif9)
+GSE250130_rif9 <- FindVariableFeatures(GSE250130_rif9)
+GSE250130_rif9 <- ScaleData(GSE250130_rif9)
+GSE250130_rif9 <- RunPCA(GSE250130_rif9)
+
+sweep.res <- paramSweep(GSE250130_rif9, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif9@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif9 <- doubletFinder(GSE250130_rif9, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif9 <- doubletFinder(GSE250130_rif9, PCs = 1:10, pN = 0.25, pK = 0.02, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.02_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.02_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif9@meta.data)[GSE250130_rif9@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif9_singlets <- subset(GSE250130_rif9, cells = singlet_cells)
+
+saveRDS(GSE250130_rif9_singlets, "GSE250130_rif9_singlets_july9.rds")
+```
+
+
+```{r, fig.width=15}
+# 🔹 GSE250130_rif10
+GSE250130_rif10 <- readRDS("<original_archive>/scRNA_GSE250130/RDS_files/GSE250130_rif10.RDS")
+GSE250130_rif10$id <- "GSE250130_rif10"
+GSE250130_rif10$sample <- "RIF"
+
+DefaultAssay(GSE250130_rif10) <- "RNA"
+DefaultLayer(GSE250130_rif10[["RNA"]]) <- "counts"
+
+GSE250130_rif10 <- NormalizeData(GSE250130_rif10)
+GSE250130_rif10 <- FindVariableFeatures(GSE250130_rif10)
+GSE250130_rif10 <- ScaleData(GSE250130_rif10)
+GSE250130_rif10 <- RunPCA(GSE250130_rif10)
+
+sweep.res <- paramSweep(GSE250130_rif10, PCs = 1:10, sct = FALSE)
+sweep.stats <- summarizeSweep(sweep.res, GT = FALSE)
+bcmvn <- find.pK(sweep.stats)
+
+ggplot(bcmvn, aes(x = pK, y = BCmetric)) + 
+  geom_point() + 
+  geom_line() +
+  theme_minimal()
+
+homotypic.prop <- 0
+nExp_poi <- round(0.05 * nrow(GSE250130_rif10@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1 - homotypic.prop))
+
+GSE250130_rif10 <- doubletFinder(GSE250130_rif10, PCs = 1:10, pN = 0.25, pK = 0.24, nExp = nExp_poi, reuse.pANN = NULL, sct = FALSE)
+GSE250130_rif10 <- doubletFinder(GSE250130_rif10, PCs = 1:10, pN = 0.25, pK = 0.24, nExp = nExp_poi.adj, reuse.pANN = paste0("pANN_0.25_0.24_", nExp_poi), sct = FALSE)
+
+doublet_col <- paste0("DF.classifications_0.25_0.24_", nExp_poi.adj)
+singlet_cells <- rownames(GSE250130_rif10@meta.data)[GSE250130_rif10@meta.data[[doublet_col]] == "Singlet"]
+GSE250130_rif10_singlets <- subset(GSE250130_rif10, cells = singlet_cells)
+
+saveRDS(GSE250130_rif10_singlets, "GSE250130_rif10_singlets_july9.rds")
+
+```
+
+

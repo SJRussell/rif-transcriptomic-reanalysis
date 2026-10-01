@@ -1,0 +1,296 @@
+---
+title: "Microarray Analysis:"
+last update: Dec 16th
+output: html_notebook
+---
+
+```{r}
+library(GEOquery)
+library(affy)
+library(limma)
+library("pheatmap")
+library(plotly)
+library(ggplot2)
+library(reshape2)
+library(data.table)
+library(dplyr)
+```
+
+- Download the data
+-->getGEO will download the matrix.txt for metadata info
+-->getGEOSuppFiles will download CEL or txt files per sample
+```{r}
+gse<-getGEO('GSE103465')
+gse<-gse[[1]]
+phenotype_data<-pData(gse)
+geo_accession<- "GSE103465"
+raw_data_dir <- "<original_archive>/MICROARRAY_DATA/GSE103465"
+getGEOSuppFiles(geo_accession, makeDirectory = TRUE, baseDir = raw_data_dir)
+untar(file.path(raw_data_dir, paste0(geo_accession, "_RAW.tar")), exdir=raw_data_dir)
+```
+
+```{r}
+output_dir<-"<original_archive>/MICROARRAY_DATA/GSE103465/txt_files"
+gz_files<-list.files(raw_data_dir, pattern = "\\.gz$", full.names = TRUE)
+for (file in gz_files) {
+  dest_file <- file.path(output_dir, gsub("\\.gz$", "", basename(file)))
+  R.utils::gunzip(file, destname = dest_file, remove = FALSE)
+}
+```
+
+```{r}
+cel_files <- list.files("<original_archive>/MICROARRAY_DATA/GSE103465/txt_files", 
+                        pattern = "\\.CEL$", 
+                        full.names = TRUE)
+cel_data <-ReadAffy(filenames=cel_files)
+expr_data<-exprs(cel_data)
+```
+
+PCA analysis: before normalization
+```{r, fig.height=12, fig.width=8}
+# Transpose the data to have samples as rows and genes as columns
+expr_data_t <- t(expr_data)
+colnames(expr_data_t) <- paste0("Gene", 1:ncol(expr_data_t))
+
+# Perform PCA
+pca_result <- prcomp(expr_data_t, scale. = TRUE)
+
+# Extract PCA scores for the first three principal components
+pca_scores <- data.frame(pca_result$x[, 1:3])
+colnames(pca_scores) <- c("PC1", "PC2", "PC3")
+
+# Add sample labels
+pca_scores$Sample <- rownames(pca_scores)
+
+# Add condition labels (manually in this example, modify as needed for your data)
+pca_scores$Condition <- c("Control", "Control", "Control", "RIF", "RIF", "RIF")
+
+# Calculate % variance explained for the first three PCs
+explained_variance <- round(100 * pca_result$sdev[1:3]^2 / sum(pca_result$sdev^2), 1)
+
+# Create a 3D PCA plot using plotly
+plot_ly(
+  pca_scores,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3,
+  color = ~Condition,
+  colors = c("blue", "red"),  # Adjust colors for Control and RIF
+  text = ~paste("Sample:", Sample),  # Add sample labels as hover text
+  type = "scatter3d",
+  mode = "markers+text",  # Add point labels
+  textposition = "top center"  # Position labels
+) %>%
+  layout(
+    title = "3D PCA of Expression Data",
+    scene = list(
+      xaxis = list(title = paste0("PC1 (", explained_variance[1], "% variance)")),
+      yaxis = list(title = paste0("PC2 (", explained_variance[2], "% variance)")),
+      zaxis = list(title = paste0("PC3 (", explained_variance[3], "% variance)"))
+    )
+  )
+
+```
+Normalization and background correction
+```{r}
+rma_data<-rma(cel_data)
+#extract the expression data
+expr_norm_data<-exprs(rma_data)
+```
+PCA Analysis: after normalization
+```{r, fig.height=12, fig.width=8}
+# Transpose the data to have samples as rows and genes as columns
+expr_data_t <- t(expr_norm_data)
+colnames(expr_data_t) <- paste0("Gene", 1:ncol(expr_data_t))
+
+# Perform PCA
+pca_result <- prcomp(expr_data_t, scale. = TRUE)
+
+# Extract PCA scores for the first three principal components
+pca_scores <- data.frame(pca_result$x[, 1:3])
+colnames(pca_scores) <- c("PC1", "PC2", "PC3")
+
+# Add sample labels
+pca_scores$Sample <- rownames(pca_scores)
+
+# Add condition labels (manually in this example, modify as needed for your data)
+pca_scores$Condition <- c("Control", "Control", "Control", "RIF", "RIF", "RIF")
+
+# Calculate % variance explained for the first three PCs
+explained_variance <- round(100 * pca_result$sdev[1:3]^2 / sum(pca_result$sdev^2), 1)
+
+# Create a 3D PCA plot using plotly
+plot_ly(
+  pca_scores,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3,
+  color = ~Condition,
+  colors = c("blue", "red"),  # Adjust colors for Control and RIF
+  text = ~paste("Sample:", Sample),  # Add sample labels as hover text
+  type = "scatter3d",
+  mode = "markers+text",  # Add point labels
+  textposition = "top center"  # Position labels
+) %>%
+  layout(
+    title = "3D PCA of Expression Data",
+    scene = list(
+      xaxis = list(title = paste0("PC1 (", explained_variance[1], "% variance)")),
+      yaxis = list(title = paste0("PC2 (", explained_variance[2], "% variance)")),
+      zaxis = list(title = paste0("PC3 (", explained_variance[3], "% variance)"))
+    )
+  )
+
+```
+
+
+
+```{r, fig.height=14, fig.width=10}
+# Assuming you have the expression matrix `expr_norm_data` and sample conditions
+# Sample conditions: Add a data frame with the condition for each sample
+sample_conditions <- data.frame(
+  Condition = c("Control", "Control", "Control", "RIF", "RIF", "RIF")
+)
+rownames(sample_conditions) <- colnames(expr_norm_data)  # Ensure rownames match the sample names
+
+# Calculate mean expression for each gene across samples
+gene_mean_expression <- rowMeans(expr_norm_data)
+
+# Select the top 100 most expressed genes
+top_genes <- order(gene_mean_expression, decreasing = TRUE)[1:1000]
+expr_top_genes <- expr_norm_data[top_genes, ]
+
+# Scale the data for better visualization
+expr_top_genes_scaled <- t(scale(t(expr_top_genes)))
+
+# Generate the heatmap with annotations
+pheatmap(
+  expr_top_genes_scaled,
+  cluster_rows = TRUE,   # Cluster genes
+  cluster_cols = TRUE,   # Cluster samples
+  color = colorRampPalette(c("blue", "white", "red"))(50), # Color gradient
+  annotation_col = sample_conditions, # Add sample conditions
+  main = "Heatmap of Top 100 Most Expressed Genes",
+  fontsize = 10
+)
+
+```
+downloading annotation file
+```{r}
+# Download the platform files for annotation
+gpl <- getGEO("GPL16043", AnnotGPL = TRUE)
+# Convert to data frames
+gpl_annot <- Table(gpl)
+# Check for relevant columns, typically "ID" and "Gene Symbol" or similar
+colnames(gpl_annot)
+# Extract the relevant mapping for GPL17077
+annotation_map <- gpl_annot[, c("ID", "Gene Symbol")]
+```
+
+(if not done alr)
+```{r}
+# Save the annotation table as a CSV file
+#write.csv(annotation_map, file = annotation_map, row.names = TRUE)
+```
+
+MERGING DATA TO ANNOTATION FILE
+```{r}
+#First need to convert normalized data into a data frame and add in a column for probe ID so it can correspond with the annotation map (for aggregation)
+# Add probe IDs as a column to expr_norm_data
+expr_norm_df <- as.data.frame(expr_norm_data)  # Convert matrix to data frame
+expr_norm_df$ProbeID <- rownames(expr_norm_data)
+# Move ProbeID to the front for clarity
+expr_norm_df <- expr_norm_df[, c("ProbeID", setdiff(colnames(expr_norm_df), "ProbeID"))]
+
+# Change column names
+colnames(annotation_map)[colnames(annotation_map) == "ID"] <- "ProbeID"
+colnames(annotation_map)[colnames(annotation_map) == "Gene Symbol"] <- "Gene_Symbol"
+
+```
+
+Aggregation (based on the ProbeID column)
+```{r}
+# Merge normalized expression data with annotation table
+annotated_expr_df <- merge(expr_norm_df, annotation_map, by = "ProbeID", all.x = TRUE)
+# Remove rows where GeneSymbol is NA, empty string, or ---
+annotated_expr_df <- annotated_expr_df[!(is.na(annotated_expr_df$Gene_Symbol) | annotated_expr_df$Gene_Symbol == "" | annotated_expr_df$Gene_Symbol == "---"), ]
+```
+Save annotation file locally
+```{r}
+#write.csv(annotated_expr_df, "annotated_expr_GSE103465.csv", row.names = FALSE)
+```
+
+DE Analysis
+- what we have currently: annotated data frame with the normalized data and gene symbols
+
+```{r}
+# Collapse by GeneSymbol, retaining subject-specific expression
+collapsed_expr_df <- annotated_expr_df %>%
+  group_by(Gene_Symbol) %>%  
+  summarise(across(where(is.numeric), mean)) %>%  # Aggregate by mean (per subject)
+  ungroup()  # Remove grouping
+# Convert back to data frame
+collapsed_expr_df <- as.data.frame(collapsed_expr_df)
+# Set GeneSymbol as row names
+rownames(collapsed_expr_df) <- collapsed_expr_df$Gene_Symbol
+collapsed_expr_df <- collapsed_expr_df[, -1]  # Remove GeneSymbol column after setting row names
+```
+save
+```{r}
+#write.csv(collapsed_expr_df, "mean_expr_df.csv", row.names = TRUE)
+```
+
+Adjust sample names to "control" and "RIF"
+- using "title" column from phenotype_data
+```{r}
+# Update 'title' column based on keywords "control" or "RIF"
+phenotype_data <- phenotype_data %>%
+  mutate(title = case_when(
+    grepl("control", title, ignore.case = TRUE) ~ "Control",  # If 'control' is found, set title to "Control"
+    grepl("RIF", title, ignore.case = TRUE) ~ "RIF",         # If 'RIF' is found, set title to "RIF"
+    TRUE ~ title  # Keep original value if neither is matched
+  ))
+
+#Adjust names within the collapsed_expr_df
+# Ensure the number of columns in collapsed_expr_df matches the number of geo_accession entries
+if (length(colnames(collapsed_expr_df)) == length(phenotype_data$geo_accession)) {
+  
+  # Rename the columns in collapsed_expr_df to match geo_accession
+  colnames(collapsed_expr_df) <- phenotype_data$geo_accession
+  
+  # Verify the updated column names
+  print("Updated column names based on geo_accession:")
+  print(colnames(collapsed_expr_df))
+  
+} else {
+  stop("Mismatch: Number of expression data columns and geo_accession entries do not match.")
+}
+
+```
+Set up design matrix
+```{r}
+group<-factor(phenotype_data$title, levels = c("Control","RIF"))
+levels(group) <- make.names(levels(group))
+#Design model matrix
+design<-model.matrix(~ 0 + group)
+colnames(design)<-levels(group)
+# Fit linear model
+fit <- lmFit(collapsed_expr_df, design)
+```
+
+Make contrast matrix and run DE analysis
+```{r}
+contrast_matrix <- makeContrasts(Control_vs_RIF = Control-RIF, levels = design)
+fit2<-contrasts.fit(fit,contrast_matrix)
+fit2<-eBayes(fit2)
+```
+
+Assess and filter DEG results
+```{r}
+deg_results <- topTable(fit2, adjust = "BH", sort.by = "P", number = Inf)
+#Filter
+deg_results<-deg_results[abs(deg_results$logFC)>=log2(1) & deg_results$P.Value<=0.05,]
+results <- decideTests(fit2, lfc = 1, adjust.method = "none")
+
+```
+

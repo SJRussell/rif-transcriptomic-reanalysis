@@ -1,0 +1,13 @@
+# GSE58144 orientation audit
+
+The downloaded GEO SOFT record explicitly defines VALUE as "Quantile normalized and batch corrected log2 ratio (sample/reference)". Across 18,919 approved genes and the 113 shared samples, the original processed matrix has median per-gene correlation -0.9917559 with this deposited matrix; 99.99471% of correlations are negative. The published MetaRIF training values agree positively with GEO (median feature correlations 0.9621 and 0.9238 for the two binary models), and negatively with the original matrix. This establishes a source-orientation mismatch, independently of RIF/control classification performance.
+
+The original microarrays are two-colour dye-swap pairs. The original notebook assigned R=Ch2 Signal Mean and G=Ch1 Signal Mean, then swapped channels when the dye-orientation table identified Cy3 as sample. The study deposit supplies the dye-orientation key and 230 original arrays for 115 donors. The GEO sample/reference convention is the orientation authority; do not choose direction by which produces a preferred RIF result.
+
+The notebook excluded GSM1402357 and GSM1402432 as PCA outliers, with no quantitative exclusion threshold specified in that section. The earlier analysis retained this 113-sample subset. The rebuild reports this exact subset and an all-115 sensitivity. The subset was not selected by differential-expression or classifier performance.
+
+The rebuild reconstructs dye-swap log ratios from the raw files, checks orientation against the deposited values, and fits condition, batch and recorded biopsy day in the study-level design, so classification no longer depends on phenotype-preserving ComBat inputs.
+
+Result: 18,919 approved genes; raw-to-GEO median per-gene correlation 0.875. Case-blind batch removal changes the expression representation (median correlation 0.786 with the deposited data) but retains positive correlations for 99.92% of genes. Direction is anchored to raw/deposited sample-reference agreement, not to reproduction of the deposited batch-correction method. No genes pass BH FDR 0.05 with batch and biopsy day in either the 113- or 115-donor model. The 113 retained labels agree with GEO titles and condition fields. The full set contains 43 RIF and 72 controls; the excluded samples were one RIF (GSM1402357) and one control (GSM1402432).
+
+Sources: GSE58144_family.soft.gz, GSE58144_rawfiles_dye_orientation.txt.gz, GEO raw sample files, GSE58144_analysis_mar12.Rmd, and the pinned MetaRIF release (`docs/source_checks/MetaRIF/source_manifest.json`). The numerical audit tables are not included in this repository. `analysis/as_run/subtypes/compare_gse58144_sources.R` produces the GEO correlation table.

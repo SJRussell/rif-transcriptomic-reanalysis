@@ -1,0 +1,86 @@
+{
+  "started_utc": "2026-09-08T19:35:00.640059",
+  "bams": [
+    {
+      "path": "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237165_Aligned.sortedByCoord.out.bam",
+      "bytes": 1570703088
+    },
+    {
+      "path": "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237166_Aligned.sortedByCoord.out.bam",
+      "bytes": 1577258142
+    },
+    {
+      "path": "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237167_Aligned.sortedByCoord.out.bam",
+      "bytes": 1559246469
+    },
+    {
+      "path": "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237168_Aligned.sortedByCoord.out.bam",
+      "bytes": 1499538892
+    },
+    {
+      "path": "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237169_Aligned.sortedByCoord.out.bam",
+      "bytes": 1656858359
+    },
+    {
+      "path": "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237170_Aligned.sortedByCoord.out.bam",
+      "bytes": 1572384662
+    }
+  ],
+  "annotation": "/data/human_genome_T2T/ncbi_dataset/T2T.gtf",
+  "commands": [
+    [
+      "nice",
+      "-n",
+      "10",
+      "/usr/bin/featureCounts",
+      "-T",
+      "4",
+      "-t",
+      "exon",
+      "-g",
+      "gene_id",
+      "-s",
+      "0",
+      "-p",
+      "--countReadPairs",
+      "-a",
+      "/data/human_genome_T2T/ncbi_dataset/T2T.gtf",
+      "-o",
+      "<server_workdir>/PRJNA576073/gene_counts_s0.txt",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237165_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237166_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237167_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237168_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237169_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237170_Aligned.sortedByCoord.out.bam"
+    ],
+    [
+      "nice",
+      "-n",
+      "10",
+      "/usr/bin/featureCounts",
+      "-T",
+      "4",
+      "-t",
+      "exon",
+      "-g",
+      "gene_id",
+      "-s",
+      "2",
+      "-p",
+      "--countReadPairs",
+      "-a",
+      "/data/human_genome_T2T/ncbi_dataset/T2T.gtf",
+      "-o",
+      "<server_workdir>/PRJNA576073/gene_counts_s2.txt",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237165_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237166_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237167_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237168_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237169_Aligned.sortedByCoord.out.bam",
+      "<server_data>/PRJNA576073_rnaseq/STAR_PRJNA576073/SRR10237170_Aligned.sortedByCoord.out.bam"
+    ]
+  ],
+  "completed_utc": "2026-09-08T19:38:29.434758",
+  "annotation_sha256": "4cc2d77d561086f726a28e09feea6065275964c51f4aa04f698d7b12cda28f6b"
+}

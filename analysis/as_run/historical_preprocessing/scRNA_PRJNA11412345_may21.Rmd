@@ -1,0 +1,145 @@
+---
+title: "PRJNA11412345"
+output: html_notebook
+---
+
+Load libraries
+```{r}
+library(Seurat)
+library(SeuratObject)
+library(tidyverse)
+```
+
+load files and create and view Seurat objects
+```{r}
+# SRR30016494 <- Read10X(data.dir = "<original_archive>/scRNA_PRJNA1141235/SRR30016494")
+# SRR30016499 <- Read10X(data.dir = "<original_archive>/scRNA_PRJNA1141235/SRR30016499")
+# SRR30016501 <- Read10X(data.dir = "<original_archive>/scRNA_PRJNA1141235/SRR30016501")
+# SRR30016504 <- Read10X(data.dir = "<original_archive>/scRNA_PRJNA1141235/SRR30016504")
+# 
+# SRR30016494<- CreateSeuratObject(counts = SRR30016494, project = "SRR30016494", min.cells = 3, min.features = 200)
+# SRR30016499<-CreateSeuratObject(counts = SRR30016499, project = "SRR30016499", min.cells = 3, min.features = 200)
+# SRR30016501<-CreateSeuratObject(counts = SRR30016501, project = "SRR30016501", min.cells = 3, min.features = 200)
+# SRR30016504<-CreateSeuratObject(counts = SRR30016504, project = "SRR30016504", min.cells = 3, min.features = 200)
+
+```
+save
+```{r}
+# saveRDS(SRR30016494, file = "<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016494.RDS")
+# saveRDS(SRR30016499, file = "<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016499.RDS")
+# saveRDS(SRR30016501, file = "<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016501.RDS")
+# saveRDS(SRR30016504, file = "<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016504.RDS")
+```
+
+read RDS files
+```{r}
+SRR30016494<-readRDS("<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016494.RDS")
+SRR30016499<-readRDS("<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016499.RDS")
+SRR30016501<-readRDS("<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016501.RDS")
+SRR30016504<-readRDS("<original_archive>/scRNA_PRJNA1141235/RDS_files/SRR30016504.RDS")
+```
+
+merge objects into 1
+```{r}
+merged<-merge(x=SRR30016494, y=c(SRR30016499, SRR30016501, SRR30016504),
+              add.cell.ids=c("94","99","01","04"),
+              project='merged')
+#ls: tells you how many objects and the order
+```
+
+PREPROCESSING WORKFLOW
+step 1: quality control:
+```{r}
+#store mito % in object meta data
+merged<-PercentageFeatureSet(merged,pattern = "^MT-", col.name = "percent_mt")
+
+#select cells for further analysis
+subset_merged<-subset(merged, subset = nFeature_RNA > 500 & nCount_RNA < 20000 & percent_mt < 25)
+#& nFeature_RNA < 8000
+```
+Plot to see distribution of cells
+```{r}
+VlnPlot(merged, features = c("nFeature_RNA", "nCount_RNA", "percent_mt"), ncol = 3)
+VlnPlot(subset_merged, features = c("nFeature_RNA", "nCount_RNA", "percent_mt"), ncol = 3)
+
+```
+AFTER QC: cell count goes from ~32,000 to ~10,000
+step 2: data normalization:
+```{r}
+#normalize
+subset_merged<-NormalizeData(subset_merged, normalization.method = "LogNormalize", scale.factor = 10000)
+#normalizes gene expression measurement for each cell by the total expression then multiples by a scale factor of 10,000
+```
+
+step 3: identification of highly variable features 
+
+```{r}
+#find variable features
+subset_merged<-FindVariableFeatures(subset_merged, selection.method = "vst", nfeatures = 2000)
+VariableFeaturePlot(subset_merged)
+
+#Fu 2024: "2000 highly variable genes were selected"
+```
+step 4: data scaling
+```{r}
+subset_merged<-ScaleData(subset_merged)
+#highly expressed genes will not dominate downstream analysis
+
+#save
+#saveRDS(subset_merged, file = "<original_archive>/scRNA_PRJNA1141235/merged_RDS_may21")
+```
+
+PCA
+```{r}
+subset_merged<-RunPCA(subset_merged)
+```
+plot
+```{r}
+DimPlot(subset_merged, reduction = "pca", dims = c(1,2))
+DimPlot(subset_merged, reduction = "pca", dims = c(1,10))
+DimPlot(subset_merged, reduction = "pca", dims = c(1,50))
+```
+determine the 'dimension' of the dataset
+- decide how many of those summary axes (PCs) are meaningful before you start clustering
+- An elbow plot shows how much each PC contributes; you look for the point where the contribution “bends” (the elbow)
+```{r}
+#JackStraw function is more complex and challenging to understand
+#ElbowPlot function
+ElbowPlot(subset_merged)
+#identify where the elbow is --> around 9
+ElbowPlot(subset_merged, ndims = 50, reduction = "pca")
+#just to check
+```
+
+cluster the cells
+```{r}
+subset_merged<-FindNeighbors(subset_merged, dims = 1:20)
+#takes first 20 PCA and finds dimensional analysis, and finds cells with similar feature expression pattern
+#builds a network map where each cell connects to its nearest neighbors based on the first 20 PCs
+
+#subset_merged<-FindClusters(subset_merged, resolution = 0.1)
+#resolution=0.1--> 12 clusters
+
+subset_merged<-FindClusters(subset_merged, resolution = 0.8)
+#resolution=0.3--> 17 clusters
+
+```
+run non-linear dimensional analysis:
+UMAP:
+```{r}
+subset_merged<-RunUMAP(subset_merged, dims = 1:20)
+DimPlot(subset_merged, reduction = "umap", label = TRUE, repel = TRUE)
+```
+tSNE:
+```{r}
+subset_merged<-RunTSNE(object=subset_merged)
+DimPlot(object= subset_merged, reduction = "tsne")
+```
+- highlighting local groupings
+- distances between far-apart clusters can be less meaningful
+
+INTREGRATION
+```{r}
+
+```
+

@@ -1,0 +1,14 @@
+"study","arm","tech","n_control","n_rif","N","N_effective","genes_tested"
+"Bui2024","rnaseq","bulk",22,22,44,44,18495
+"GSE103465","microarray","microarray",3,3,6,6,18554
+"GSE111974","microarray","microarray",24,24,48,48,20128
+"GSE183837","rnaseq","pseudobulk",3,6,9,8,13848
+"GSE188409","microarray","microarray",5,5,10,10,18516
+"GSE205398","rnaseq","bulk",3,3,6,6,15722
+"GSE250130","rnaseq","pseudobulk",3,10,13,9.23076923076923,14410
+"GSE26787","microarray","microarray",5,5,10,10,19001
+"GSE58144","microarray","microarray",71,42,113,105.557522123894,18919
+"GSE71331","microarray","microarray",5,7,12,11.6666666666667,24913
+"GSE92324","microarray","microarray",8,10,18,17.7777777777778,20531
+"PRJNA1141235","rnaseq","pseudobulk",2,2,4,4,14395
+"PRJNA576073","rnaseq","bulk",3,3,6,6,15898

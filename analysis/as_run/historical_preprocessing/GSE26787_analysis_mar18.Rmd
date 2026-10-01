@@ -1,0 +1,219 @@
+---
+title: "GSE26787"
+output: html_notebook
+---
+
+Load necessary libraries
+```{r}
+library(GEOquery)
+library(Biobase)
+library(limma)
+library(affy)
+library(affyio)
+library(R.utils)
+library(dplyr)
+library(sva)
+library(plotly)
+library(data.table)
+library(ggplot2)
+library(pheatmap)
+library(tibble)
+
+```
+
+Download the data
+```{r}
+gse<-getGEO('GSE26787')
+gse<-gse[[1]]
+phenotype_data<-pData(gse)
+geo_accession<- "GSE26787"
+
+```
+
+Refine the phenotype data
+```{r}
+phenotype_data <- phenotype_data %>% rename(condition = source_name_ch1)
+
+phenotype_data <- phenotype_data %>%
+  mutate(condition = case_when(
+    grepl("fertile", condition, ignore.case = TRUE) ~ "Control",
+    grepl("failure", condition, ignore.case = TRUE) ~ "RIF",
+    TRUE ~ condition #(Keep original value if neither is matched)
+  ))
+#remove the rows of patients with spontaneous abortion (not part of the current study and raw files alr deleted)
+rows_to_remove <- c("GSM659113", "GSM659114", "GSM659115", "GSM659116", "GSM659117")
+phenotype_data <- phenotype_data[!rownames(phenotype_data) %in% rows_to_remove, ]
+
+```
+
+Read the raw data
+```{r}
+output_dir<-"<original_archive>/MICROARRAY_DATA/GSE26787/cel_files"
+cel_files <- list.files(output_dir, pattern = "\\.CEL$", full.names = TRUE)
+cel_data <-ReadAffy(filenames=cel_files)
+
+#classify the pre-corrected data
+prenorm_exprs<-exprs(cel_data)
+
+```
+
+Background correction and normalization w/ RMA
+```{r}
+corrected_data<-rma(cel_data)
+
+#create a data frame for corrected data to use for annotation
+exprs_df<-as.data.frame.ExpressionSet(corrected_data)
+exprs_df<-t(exprs_df)
+```
+
+Validation
+```{r}
+boxplot(prenorm_exprs, main = "Before RMA")
+boxplot(exprs_df, main = "After RMA")
+```
+
+Prep for annotation
+```{r}
+gpl<-getGEO("GPL570", AnnotGPL = TRUE)
+gpl_annot <- Table(gpl)
+
+# Extract the relevant mapping for GPL570
+annotation_map <- gpl_annot[, c("ID", "Gene symbol")]
+colnames(annotation_map) <- c("ProbeName", "GeneSymbol")
+```
+
+Annotation
+```{r}
+exprs <-as.data.frame(exprs_df)
+#remove probe IDs from row names and make its own column
+exprs <- rownames_to_column(exprs, var = "ProbeName")
+exprs$ProbeName <- sub("^X", "", exprs$ProbeName)
+#merge
+annotated_exprs <- merge(exprs, annotation_map, by = "ProbeName", all.x = TRUE)
+```
+
+Clean up annotated data
+```{r}
+# 1. Remove rows without any GeneSymbol information (e.g., NA or empty string)
+annotated_exprs_clean <- annotated_exprs %>%
+  filter(!is.na(GeneSymbol) & GeneSymbol != "")
+
+# 2. Group by GeneSymbol and average expression values for duplicate gene symbols.
+annotated_exprs_avg <- annotated_exprs_clean %>%
+  group_by(GeneSymbol) %>%
+  summarise(across(.cols = -c(ProbeName), 
+                   .fns = mean, 
+                   na.rm = TRUE)) %>%
+  ungroup()
+```
+
+Make gene symbols row names
+```{r}
+annotated_exprs_avg <- as.data.frame(annotated_exprs_avg)
+# Check that GeneSymbol column exists
+if("GeneSymbol" %in% colnames(annotated_exprs_avg)) {
+  rownames(annotated_exprs_avg) <- annotated_exprs_avg$GeneSymbol
+  annotated_exprs_avg <- annotated_exprs_avg[, !(names(annotated_exprs_avg) %in% "GeneSymbol")]
+} else {
+  warning("The column 'GeneSymbol' does not exist in the data frame.")
+}
+
+```
+
+3D PCA
+```{r}
+pca <- prcomp(t(annotated_exprs_avg), scale. = TRUE)
+
+# Create a data frame with the first three principal components and sample conditions.
+pca_data <- data.frame(
+  PC1 = pca$x[, 1],
+  PC2 = pca$x[, 2],
+  PC3 = pca$x[, 3],
+  condition = phenotype_data$condition
+)
+
+# Calculate the percentage of variance explained for the first three PCs
+var_exp <- summary(pca)$importance[2, 1:3] * 100
+
+fig <- plot_ly(
+  data = pca_data,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3,
+  color = ~condition,
+   colors = c("red", "blue"), 
+  type = 'scatter3d',
+  mode = 'markers',
+  marker = list(size = 5)
+) %>%
+  layout(
+    scene = list(
+      xaxis = list(title = paste0("PC1 (", round(var_exp[1], 2), "%)")),
+      yaxis = list(title = paste0("PC2 (", round(var_exp[2], 2), "%)")),
+      zaxis = list(title = paste0("PC3 (", round(var_exp[3], 2), "%)"))
+    )
+  )
+
+# Display the interactive plot
+fig
+
+```
+
+DE Analysis
+Step 1: create design matrix
+```{r}
+group<-factor(phenotype_data$condition, levels = c("Control","RIF"))
+levels(group) <- make.names(levels(group))
+#Design model matrix
+design<-model.matrix(~ 0 + group)
+rownames(design) <- colnames(annotated_exprs_avg)
+colnames(design) <- c("Control", "RIF")
+```
+Step 2: fit linear model to the data
+```{r}
+fit <- lmFit(annotated_exprs_avg, design)
+```
+Step 3: define contrast matrix
+```{r}
+contrast_matrix <- makeContrasts(
+  Control_vs_RIF = Control - RIF,
+  levels = design
+)
+fit2 <- contrasts.fit(fit, contrast_matrix)
+```
+Step 4: apply eBayes moderation
+```{r}
+fit2 <- eBayes(fit2)
+```
+Step 5: find the top genes
+```{r}
+top_genes <- topTable(fit2, coef = "Control_vs_RIF", number = Inf, adjust.method = "BH")
+#apply filter
+de_genes <- top_genes[top_genes$P.Value < 0.05 & abs(top_genes$logFC) > 1, ]
+```
+
+heat map
+```{r}
+# Subset merged_data for the DE genes
+de_gene_ids <- rownames(de_genes)
+heatmap_data <- annotated_exprs_avg[de_gene_ids, ]
+
+#Scale each row (gene) to mean=0 and sd=1 to emphasize relative differences
+scaled_heatmap_data <- t(scale(t(heatmap_data)))
+
+# Create a column annotation data frame using the sample condition information
+annotation_col <- data.frame(Condition = phenotype_data$condition)
+rownames(annotation_col) <- colnames(annotated_exprs_avg)
+
+# Create the heatmap
+pheatmap(scaled_heatmap_data,
+         annotation_col = annotation_col,
+         show_rownames = FALSE,
+         show_colnames = TRUE,
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         clustering_method = "complete",
+         main = "Heatmap of Differentially Expressed Genes")
+
+```
+(consider: remove ___108.cEL which is a RIF patient that may be an outlier..???)

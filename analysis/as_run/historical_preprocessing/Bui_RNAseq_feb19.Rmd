@@ -1,0 +1,140 @@
+---
+title: "Collab data inital analysis"
+output: html_notebook
+---
+
+Download necessary libraries
+```{r}
+library(GEOquery)
+library(DESeq2)
+library(dplyr)
+library(pheatmap)
+library(ggplot2)
+library(tidyr)
+library(EnhancedVolcano)
+
+```
+
+Input count data
+```{r}
+# Read in count data
+count_file <- "<original_archive>/RNASEQ_DATA/Bui/gene_counts.txt"
+countdata <- read.table(count_file, 
+                        header = TRUE, 
+                        row.names = 1, 
+                        sep = "\t")
+```
+
+```{r}
+# 1) copy
+countdata_clean <- countdata
+
+# 2) remove the first featureCounts annotation columns
+annot_n <- 5
+counts_only <- countdata_clean[, -(1:annot_n), drop = FALSE]
+
+# (optional) keep gene IDs as rownames if Geneid exists
+if ("Geneid" %in% colnames(countdata_clean)) {
+  rownames(counts_only) <- countdata_clean$Geneid
+}
+
+# 3) rename BAM/sample columns step by step manner:
+old <- colnames(counts_only)
+
+new <- old
+new <- sub("^X\\.", "", new)                    # remove leading "X." (from make.names)
+new <- sub("^.*STAR_Bui\\.", "", new)           # keep only after "STAR_Bui."
+new <- sub("(_S\\d+).*", "\\1", new)            # keep up to "_S##" only
+
+colnames(counts_only) <- new
+```
+
+
+Input and edit metadata
+```{r}
+metadata <- read.csv("<original_archive>/RNASEQ_DATA/Bui/Metadata_transcriptome_Bui2024_CK.csv", header = TRUE, stringsAsFactors = FALSE)
+
+#Refine the metadata
+#drop both columns if they exist
+metadata <- metadata[, !names(metadata) %in% c("X", "X.1"), drop = FALSE]
+#remove rows where Phenotype_transcriptome is N/A (not RIF or fertile)
+metadata <- metadata[metadata$Phenotype_transcriptome != "N/A", , drop = FALSE]
+#remove blank rows
+metadata <- metadata[rowSums(trimws(as.matrix(metadata)) != "") > 0, , drop = FALSE]
+
+```
+
+
+adjusting the column/row names to match
+```{r}
+#minor adjustments
+#META DATA
+#all upper case in metadata
+metadata$Sample_p.number <- toupper(metadata$Sample_p.number)
+#all underscores from dashes in metadata
+metadata$Sample_p.number <- gsub("-", "_", metadata$Sample_p.number)
+#add leading 0 into metadata to match countdata
+metadata$Sample_p.number <- sub("^(P\\d{2})_", "\\1_0", metadata$Sample_p.number)
+#COUNT DATA
+#all underscores in count data
+colnames(counts_only) <- sub("\\.", "_", colnames(counts_only))
+
+#1) build a match key from counts_only colnames (drop the _S## part)
+counts_key <- sub("_S\\d+.*$", "", colnames(counts_only))
+
+#2) choose where your sample IDs live in metadata
+# If your sample IDs are in a column (MOST common), put the column name here:
+meta_id_col <- "Sample_p.number"   # <-- CHANGE this to your actual column name
+
+meta_key <- trimws(metadata[[meta_id_col]])
+
+# (optional) if metadata IDs also sometimes contain _S stuff, strip it too
+meta_key <- sub("_S\\d+.*$", "", meta_key)
+
+#3) reorder metadata to match counts_only, using the keys
+idx <- match(counts_key, meta_key)
+
+# safety checks
+if (anyNA(idx)) {
+  missing <- counts_key[is.na(idx)]
+  stop("These counts samples didn't match anything in metadata: ",
+       paste(unique(missing), collapse = ", "))
+}
+if (any(duplicated(counts_key))) stop("Duplicate keys in counts_only after stripping _S.")
+if (any(duplicated(meta_key)))   stop("Duplicate keys in metadata sample IDs.")
+
+metadata <- metadata[idx, , drop = FALSE]
+
+#4) now you can set metadata rownames to the FULL counts_only colnames
+rownames(metadata) <- make.unique(colnames(counts_only))
+
+```
+
+sanity check: colnames match rownames
+```{r}
+all(colnames(counts_only) == rownames(metadata))
+```
+
+Quality control and filtering the data
+```{r,  fig.height=9, fig.width=11}
+# Check library sizes: these are the total counts per sample
+librarysizes <- colSums(counts_only)
+print(librarysizes)
+
+# Visualize library sizes to detect potential outliers
+barplot(librarysizes, main = "Library Sizes", ylab = "Total Counts", las = 2)
+```
+
+save 
+```{r}
+out_dir <- "<original_archive>/RNASEQ_DATA"
+
+write.csv(counts_only, file.path(out_dir, "Bui_counts.csv"), row.names = TRUE)
+write.csv(metadata,    file.path(out_dir, "Bui_metadata.csv"),    row.names = TRUE)
+
+```
+
+
+
+
+

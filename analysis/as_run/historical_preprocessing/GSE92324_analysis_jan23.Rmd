@@ -1,0 +1,349 @@
+---
+title: "GSE92324 microarray analysis"
+output: html_notebook
+---
+
+Load necessary libraries
+```{r}
+library(virtualArray)
+library(GEOquery)
+library(Biobase)
+library(limma)
+library(affy)
+library(R.utils)
+library(dplyr)
+library(sva)
+library(plotly)
+library(illuminaio)
+library(data.table)
+library(tibble)
+library(ggplot2)
+library(pheatmap)
+
+```
+Download metadata full series.matrix file
+```{r}
+#Study 1
+gse<-getGEO('GSE92324')
+gse<-gse[[1]]
+phenotype_data<-pData(gse)
+geo_accession<- "GSE92324"
+```
+Download the datasets
+```{r}
+#Study 1:
+gse_dir <- "<original_archive>/MICROARRAY_DATA/GSE92324"
+```
+Unzip to gain full access to subject files
+```{r}
+idat_dir<-"<original_archive>/MICROARRAY_DATA/GSE92324/txt_files"
+```
+Update phenotype conditions: clearly state "control" or "RIF"
+- "title" is the column where the conditions are stated; check this to ensure it aligns with pheno column name
+```{r}
+phenotype_data <- phenotype_data %>%
+  mutate(title = case_when(
+    grepl("oocyte", title, ignore.case = TRUE) ~ "Control",
+    grepl("failure", title, ignore.case = TRUE) ~ "RIF",
+    TRUE ~ title #(Keep original value if neither is matched)
+  ))
+```
+
+read idat files
+```{r}
+# Get list of IDAT files from the corresponding directory
+idat_files <- list.files(idat_dir, pattern = "\\.idat$", full.names = TRUE)
+
+# Read IDAT files and extract intensity values
+#1: create storage file where the data will be read into
+raw_data_list <- list()
+sample_names <- gsub("\\.idat$", "", basename(idat_files))  # Remove .idat extension for sample names
+for (i in seq_along(idat_files)) {
+  #2:read the files
+    file <- idat_files[i]
+    idat <- readIDAT(file)
+
+    #3: create an if statement to ensure that the mean and code values are within each file
+    if ("MeanBinData" %in% names(idat$Quants) && "CodesBinData" %in% names(idat$Quants)) {
+        raw_data_list[[i]] <- data.frame(
+          #4: read the intesity values and corresponding probe IDs into the storage list
+            Intensity = idat$Quants$MeanBinData,
+            Code = idat$Quants$CodesBinData
+        )
+        #5: fix column names
+        colnames(raw_data_list[[i]]) <- c(paste0("Intensity_", sample_names[i]), paste0("Code_", sample_names[i]))
+    } else {
+        stop(paste("Required columns are missing in file:", file))
+    }
+}
+```
+
+Combine raw intensity data into one matrix (since they are all separate in the list object)
+```{r}
+combined_rawdata <- do.call(cbind, lapply(raw_data_list, function(x) x[ , 1]))  # Extract only intensity values (column one for each sample)
+colnames(combined_rawdata) <- rownames(phenotype_data)
+```
+
+function to read the manifest (txt) file
+```{r}
+read_manifest <- function(file_path) {
+  lines <- readLines(file_path)
+  #Finds the line where [Probes] appears → this marks the start of probe annotation data
+  probes_start <- which(lines == "[Probes]") + 1
+  #Read the lines that follow as tab separated
+  probes_data <- read.delim(text = lines[probes_start:length(lines)], sep = "\t", header = TRUE)
+  return(probes_data)
+}
+```
+
+Apply the function to read the manifest/txt file
+```{r}
+manifest_file <- "<original_archive>/MICROARRAY_DATA/GSE92324/GPL10558_HumanHT-12_V4_0_R2_15002873_B.txt"
+manifest_data <- read_manifest(manifest_file)
+# Extract Probe IDs from the manifest
+probe_ids <- manifest_data$Probe_Id
+
+```
+CHECK: verify that CodesBinData from the idat files matches Array_Address_Id from the manifest file
+```{r}
+# Extract the probe-matching columns
+idat_codes <- unique(unlist(lapply(raw_data_list, function(x) x$Code)))  # Get unique CodesBinData from IDAT
+manifest_codes <- unique(manifest_data$Array_Address_Id)  # Get unique Array_Address_Id from the manifest
+
+# Count how many match
+matching_codes <- sum(idat_codes %in% manifest_codes)
+total_idat_codes <- length(idat_codes)
+total_manifest_codes <- length(manifest_codes)
+
+# Print summary
+cat("Total unique IDs in IDAT (CodesBinData):", total_idat_codes, "\n")
+cat("Total unique IDs in Manifest (Array_Address_Id):", total_manifest_codes, "\n")
+cat("Matching IDs between IDAT and Manifest:", matching_codes, "\n")
+
+# Get the mismatches
+idat_not_in_manifest <- setdiff(idat_codes, manifest_codes)
+manifest_not_in_idat <- setdiff(manifest_codes, idat_codes)
+
+cat("IDs in IDAT but NOT in Manifest:", length(idat_not_in_manifest), "\n")
+cat("IDs in Manifest but NOT in IDAT:", length(manifest_not_in_idat), "\n")
+
+```
+
+Use the array_address_id from the illumina manifest file to match the probes with the codes from CodesBinData
+```{r}
+# Extract unique CodesBinData from IDAT (raw intensity data)
+idat_codes <- unique(unlist(lapply(raw_data_list, function(x) x$Code)))
+
+# Extract unique Array_Address_Id from the manifest file
+manifest_codes <- unique(manifest_data$Array_Address_Id)
+
+# Identify matching and non-matching probe IDs
+matching_codes <- intersect(idat_codes, manifest_codes)
+idat_not_in_manifest <- setdiff(idat_codes, manifest_codes)  # Extra probes in IDAT
+manifest_not_in_idat <- setdiff(manifest_codes, idat_codes)  # Missing probes in IDAT
+
+# Filter raw data to keep only matching probe IDs
+filtered_raw_data <- lapply(raw_data_list, function(x) {
+  x[x$Code %in% matching_codes, ]  # Keep only rows with matching IDs
+})
+
+# Convert list of data frames into a single combined data frame
+totalcombined_data <- do.call(cbind, lapply(filtered_raw_data, function(x) x$Intensity))
+rownames(totalcombined_data) <- filtered_raw_data[[1]]$Code  # Set row names as probe IDs
+colnames(totalcombined_data) <- sample_names
+
+# Ensure manifest data only contains matching probes
+filtered_manifest <- manifest_data %>%
+  filter(Array_Address_Id %in% matching_codes) %>%
+  select(Array_Address_Id, Entrez_Gene_ID, Probe_Id, Symbol)  # Keep only necessary columns
+
+# Merge the manifest and intensity data using Array_Address_Id as the key
+final_matched_data <- merge(filtered_manifest, totalcombined_data, 
+                            by.x = "Array_Address_Id", by.y = "row.names", all.x = TRUE)
+
+# Display summary results
+cat("Total Matching Probes:", length(matching_codes), "\n")
+cat("IDs in IDAT but NOT in Manifest:", length(idat_not_in_manifest), "\n")
+cat("IDs in Manifest but NOT in IDAT:", length(manifest_not_in_idat), "\n")
+
+# View final matched data (optional)
+head(final_matched_data)
+
+```
+normalize
+```{r}
+#Make sure to exclude any metadata when BC and normalizing
+data_to_correct <- final_matched_data[, -c(1:4)]
+# Background correction using the normexp method
+bg_corrected <- backgroundCorrect(data_to_correct, method = "normexp", offset = 50)
+log2_data <- log2(bg_corrected)
+norm_data <- normalizeBetweenArrays(log2_data, method = "quantile")
+
+```
+quality control 
+```{r}
+boxplot(log2_data, main = "Normalized Data")
+
+```
+
+```{r}
+boxplot(norm_data, main = "Normalized Data")
+```
+
+```{r}
+par(mfrow = c(1,2))  # Split plots
+
+# Raw Data MA Plot
+plotMA(bg_corrected, main = "MA Plot: Raw Data", col = "red")
+
+# Normalized Data MA Plot
+plotMA(norm_data, main = "MA Plot: Normalized Data", col = "blue")
+
+```
+**after checking, create the final dataset to use for DE analysis
+```{r}
+final_data <- cbind(final_matched_data[, 1:4], norm_data)
+```
+
+final mean values for repeated symbols (merge probes looking at the same gene)
+```{r}
+merge_by_symbol <- function(data) {
+  # Identify columns with expression data
+  expression_cols <- setdiff(colnames(data), c("Array_Address_Id", "Entrez_Gene_ID", "Probe_Id", "Symbol"))
+  
+  # Group by Symbol and calculate mean for expression columns
+  data %>%
+    group_by(Symbol) %>%
+    summarise(across(all_of(expression_cols), \(x) mean(x, na.rm = TRUE))) %>%
+    filter(!is.na(Symbol) & Symbol != "") # Remove rows with NA or empty gene symbols
+}
+
+# Apply the function to your data
+merged_data <- merge_by_symbol(final_data)
+
+# Check for any rows without gene symbols
+missing_symbols <- sum(is.na(merged_data$Symbol) | merged_data$Symbol == "")
+cat("Number of rows without gene symbols:", missing_symbols, "\n")
+
+```
+finalize format
+```{r}
+#set the symbol column as row names
+merged_data <- merged_data %>% column_to_rownames("Symbol")
+colnames(merged_data) <- rownames(phenotype_data)
+```
+
+```{r}
+# Compute PCA
+pca <- prcomp(t(merged_data), scale. = TRUE)
+
+# Convert to data frame
+pca_data <- data.frame(PC1 = pca$x[, 1], PC2 = pca$x[, 2], Condition = phenotype_data$title)
+
+# PCA plot
+ggplot(pca_data, aes(x = PC1, y = PC2, color = Condition)) +
+  geom_point(size = 3) +
+  labs(title = "PCA Plot: Normalized Data", x = "PC1", y = "PC2") +
+  theme_minimal()
+
+```
+3D PCA
+```{r}
+# Compute PCA
+pca <- prcomp(t(merged_data), scale. = TRUE)
+
+# Extract the first three principal components and combine with sample metadata
+pca_data <- data.frame(
+  PC1 = pca$x[, 1],
+  PC2 = pca$x[, 2],
+  PC3 = pca$x[, 3],
+  Condition = phenotype_data$title
+)
+
+# Calculate the percentage of variance explained by each component
+var_exp <- summary(pca)$importance[2, 1:3] * 100
+
+fig <- plot_ly(
+  data = pca_data,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3,
+  color = ~Condition,
+  colors = c("red", "blue"),
+  marker = list(size = 5),
+  type = "scatter3d",
+  mode = "markers"
+)
+
+# Customize axis labels to display variance explained
+fig <- fig %>%
+  layout(
+    scene = list(
+      xaxis = list(title = paste0("PC1 (", round(var_exp[1], 2), "%)")),
+      yaxis = list(title = paste0("PC2 (", round(var_exp[2], 2), "%)")),
+      zaxis = list(title = paste0("PC3 (", round(var_exp[3], 2), "%)"))
+    )
+  )
+
+# Display the figure
+fig
+
+```
+DE Analysis
+Step 1: create design matrix
+```{r}
+group<-factor(phenotype_data$title, levels = c("Control","RIF"))
+levels(group) <- make.names(levels(group))
+#Design model matrix
+design<-model.matrix(~ 0 + group)
+rownames(design) <- colnames(merged_data)
+colnames(design) <- c("Control", "RIF")
+```
+Step 2: fit linear model to the data
+```{r}
+fit <- lmFit(merged_data, design)
+```
+Step 3: define contrast matrix
+```{r}
+contrast_matrix <- makeContrasts(
+  Control_vs_RIF = Control - RIF,
+  levels = design
+)
+fit2 <- contrasts.fit(fit, contrast_matrix)
+```
+Step 4: apply eBayes moderation
+```{r}
+fit2 <- eBayes(fit2)
+```
+Step 5: find the top genes
+```{r}
+top_genes <- topTable(fit2, coef = "Control_vs_RIF", number = Inf, adjust.method = "BH")
+#apply filter
+de_genes <- top_genes[top_genes$adj.P.Val < 0.05 & abs(top_genes$logFC) > 1, ]
+```
+
+heat map
+```{r}
+# Subset merged_data for the DE genes
+de_gene_ids <- rownames(de_genes)
+heatmap_data <- merged_data[de_gene_ids, ]
+
+#Scale each row (gene) to mean=0 and sd=1 to emphasize relative differences
+scaled_heatmap_data <- t(scale(t(heatmap_data)))
+
+# Create a column annotation data frame using the sample condition information
+annotation_col <- data.frame(Condition = phenotype_data$title)
+rownames(annotation_col) <- colnames(merged_data)
+
+# Create the heatmap
+pheatmap(scaled_heatmap_data,
+         annotation_col = annotation_col,
+         show_rownames = FALSE,
+         show_colnames = TRUE,
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         clustering_method = "complete",
+         main = "Heatmap of Differentially Expressed Genes")
+
+```
+

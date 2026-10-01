@@ -1,0 +1,628 @@
+---
+title: "GSE58144"
+output: html_notebook
+---
+Load necessary libraries
+```{r}
+library(virtualArray)
+library(GEOquery)
+library(Biobase)
+library(limma)
+library(dplyr)
+library(plotly)
+library(sva)
+library(ggplot2)
+library(pheatmap)
+library(ggfortify)
+library(ggrepel)
+```
+Download metadata full series.matrix file
+```{r}
+#Study 1
+gse<-getGEO('GSE58144')
+gse<-gse[[1]]
+phenotype_data<-pData(gse)
+geo_accession<- "GSE58144"
+```
+Download the datasets that once untarred, will reveal the individual txt/CEL files (the raw data we want to use for analysis)
+```{r}
+#Study 1:
+gse_dir <- "<original_archive>/MICROARRAY_DATA/GSE58144"
+```
+
+Update phenotype conditions: clearly state "control" or "RIF"
+- "title" is the column where the conditions are stated; check this to ensure it aligns with pheno column name
+```{r}
+phenotype_data <- phenotype_data %>%
+  mutate(title = case_when(
+    grepl("control", title, ignore.case = TRUE) ~ "Control",
+    grepl("failure", title, ignore.case = TRUE) ~ "RIF",
+    TRUE ~ title #(Keep original value if neither is matched)
+  ))
+
+# Clean the phenotype data to keep only cohort information
+phenotype_data <- phenotype_data %>% rename(batch = characteristics_ch1.2)
+
+
+#Adjusting biospy timing column to include in batch correction
+#Rename the column
+colnames(phenotype_data)[colnames(phenotype_data) == "characteristics_ch1.3"] <- "biopsy_timing"
+#Extract the biopsy timing information from the renamed column (so it only includes the # and not full sentence)
+phenotype_data$biopsy_timing <- gsub(".*(\\d+)\\s*days.*", "\\1", phenotype_data$biopsy_timing)
+phenotype_data$biopsy_timing <- as.factor(phenotype_data$biopsy_timing)  
+
+```
+
+Read the target 
+```{r}
+output_dir<-"<original_archive>/MICROARRAY_DATA/GSE58144/txt_files_updated"
+txt_files <- list.files(output_dir, pattern = "\\.txt$", full.names = TRUE)
+
+target_file<-"<original_archive>/MICROARRAY_DATA/GSE58144/GSE58144_rawfiles_dye_orientation.txt"
+target <- readTargets(target_file)
+
+# Extract GSM accession from the full file names (before the first underscore)
+gsm_accessions <- sub("_.*", "", basename(txt_files))
+
+base_names_stripped <- sub("^[^_]*_", "", basename(txt_files))
+
+# Create a data frame that contains the full file name and the GSM accession -> verifies dye swap pairs
+gsm_mapping <- data.frame(
+  raw_data_file = base_names_stripped,
+  GSM = gsm_accessions
+)
+
+target <- merge(target, gsm_mapping, by = "raw_data_file", all.x = TRUE)
+
+idx <- match(base_names_stripped, target$raw_data_file)
+if (any(is.na(idx))) {
+  cat("Some files in txt_files not found in target$raw_data_file:\n")
+  print(base_names_stripped[is.na(idx)])
+  stop("Cannot align your filenames.")
+}
+
+target <- target[idx, ]
+stopifnot(identical(base_names_stripped, target$raw_data_file))
+
+```
+
+
+```{r}
+#Validation/sorting before continuing (make sure dye swap pairing is accurate)
+# Sort target by GSM to check if paired correctly
+target_sorted <- target[order(target$GSM), ]
+# Create a new column for correct pairing check
+target_sorted$pair_check <- ifelse(duplicated(target_sorted$GSM), "paired", "not paired")
+
+# IMPORTANT: reorder the target so that it matches the order of 'txt_files'
+
+#target <- target[match(basename(txt_files), target$GSM), ]
+#stopifnot(identical(basename(txt_files), target$GSM))
+```
+
+Read the raw data
+```{r}
+raw_data <- read.maimages(
+  txt_files,
+  source = "agilent",
+  columns = list(
+    R = "Ch2 Signal Mean", 
+    G = "Ch1 Signal Mean"),
+  annotation = c("Reporter Identifier") 
+)
+
+# Rename "Reporter Identifier" -> "ProbeName" for clarity
+colnames(raw_data$genes)[
+  colnames(raw_data$genes) == "Reporter Identifier"
+] <- "ProbeName"
+
+plotDensities(raw_data, main = "Before Background Subtraction")
+```
+- assess whether the distribution of intensity values is consistent across arrays
+
+Flip the R values for dye swap array
+- After this swap, every array in your RGList is standardized so that the same channel (for example, the Red channel) always represents the sample and the Green channel always represents the reference.
+```{r}
+swap_index <- which(target$Cy3 == "sample" & target$Cy5 == "reference")
+temp <- raw_data$R[, swap_index]
+raw_data$R[, swap_index] <- raw_data$G[, swap_index]
+raw_data$G[, swap_index] <- temp
+
+```
+
+
+ANNOTATION
+Download and process the platform files w/ GEOquery
+```{r}
+# Download the platform files for annotation
+gpl <- getGEO("GPL15789", AnnotGPL = TRUE)
+gpl_annot <- Table(gpl)
+
+# Extract the relevant mapping info
+annotation_map <- gpl_annot[, c("SPOT_ID", "GENE_SYMBOL")]
+colnames(annotation_map) <- c("ProbeName", "GeneSymbol")
+
+#Make sure the names match (all upper)
+raw_data$genes$ProbeName   <- toupper(raw_data$genes$ProbeName)
+annotation_map$ProbeName   <- toupper(annotation_map$ProbeName)
+
+```
+
+
+MERGE: annotation to expression data
+```{r}
+genes_annotated <- merge(
+raw_data$genes,
+annotation_map,
+by = "ProbeName",
+all.x = TRUE
+)
+```
+
+***maybe don't run this
+```{r}
+# Assign the merged results back to your data
+#raw_data$genes <- genes_annotated
+```
+
+Background correction and normalization
+```{r}
+bg_corrected_data <- backgroundCorrect(raw_data, method="normexp")
+normalized_data <- normalizeWithinArrays(bg_corrected_data, method = "loess")
+
+plotDensities(bg_corrected_data, main = "After Background Subtraction")
+
+#PCA to check results
+pca_result <- prcomp(t(normalized_data$M), scale = TRUE) 
+phenotype_data$title <- factor(phenotype_data$title)
+# Generate colors based on the levels of 'title'
+colors <- rainbow(length(levels(phenotype_data$title)))[phenotype_data$title]
+# Plot PCA result
+plot(pca_result$x[, 1:2], col = colors, pch = 16, main = "PCA Plot")
+
+```
+Normalization validation:
+- A right-skewed distribution of the A values (log2 of the average intensity) is common in microarray data -> reflects that most probes are not highly expressed and have relatively low intensities in both channels (Cy3 and Cy5)
+```{r}
+# Histogram of M values
+hist(normalized_data$M, main="Distribution of M (Log2 Ratio)", xlab="M")
+
+# Histogram of A values
+hist(normalized_data$A, main="Distribution of A (Log2 Average)", xlab="A")
+#calculate mean M
+mean_M <- mean(normalized_data$M)
+print(mean_M)
+
+plot(density(normalized_data$A), main="Density of A values", xlab="A (Log2 Average Intensity)")
+```
+
+Averaging log ratios for duplicate GSM (dye swaps)
+```{r}
+#clean up normalized$M so that we can average the dye swap intensities per sample based on GSM accession
+colnames(normalized_data$M) <- gsub(".*/(GSM[0-9]+)_.*", "\\1", colnames(normalized_data$M))
+
+# Average the log ratios based on GSM accession
+average_logratios <- avearrays(normalized_data$M, ID = target$GSM)
+#Replace the original matrix with the averaged data
+normalized_data$M <- average_logratios
+```
+
+BATCH CORRECTION
+```{r}
+# Ensure the corrected expression matrix and phenotype data are aligned
+# corrected_expr_timing: genes x samples
+normalized_matrix<-as.matrix(normalized_data$M)
+expr_matrix <- normalized_matrix[, match(rownames(phenotype_data), colnames(normalized_matrix))]
+stopifnot(identical(rownames(phenotype_data), colnames(expr_matrix)))
+
+# Factorize the condition and batch variables
+phenotype_data$title <- factor(phenotype_data$title, levels = c("Control", "RIF"))
+phenotype_data$batch <- factor(phenotype_data$batch)
+
+# Build a model matrix preserving condition only (the biological signal of interest)
+mod <- model.matrix(~ title, data = phenotype_data)
+
+# Run ComBat: This will remove batch effects (and any effects not in mod)
+combat_expr <- ComBat(
+  dat = expr_matrix,              # Expression matrix (genes x samples)
+  batch = phenotype_data$batch,   # Batch variable to remove
+  mod = mod,                      # Preserve only the condition effect
+  par.prior = TRUE,               # Use parametric adjustments
+  prior.plots = FALSE             # Set to TRUE to visualize the priors if desired
+)
+
+```
+
+Generate final data frame and annotation
+```{r}
+# Convert the corrected expression matrix to a data frame
+final_df <- as.data.frame(combat_expr)
+
+final_df$ProbeName <- normalized_data$genes$ProbeName
+final_df <- merge(final_df, annotation_map, by = "ProbeName", all.x = TRUE)
+
+final_df <- final_df %>% 
+  filter(GeneSymbol != "" & !is.na(GeneSymbol))
+
+final_aggregated <- final_df %>%
+  group_by(GeneSymbol) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>%
+  ungroup()
+
+#Set GeneSymbol as row names if you want:
+final_dataframe <- as.data.frame(final_aggregated)
+rownames(final_dataframe) <- final_dataframe$GeneSymbol
+final_dataframe$GeneSymbol <- NULL
+
+```
+
+
+PCA for final_dataframe
+```{r, fig.height=8, fig.width=10}
+pca_data <- final_dataframe
+pca_result <- prcomp(t(pca_data), center = TRUE, scale. = TRUE)  # transpose to have samples as rows
+
+#Create a PCA scores data frame
+pca_scores <- as.data.frame(pca_result$x)
+pca_scores$Condition <- phenotype_data$title
+pca_scores$Cohort <- phenotype_data$batch
+# Assuming phenotype_data has a sample identifier column; if not, use rownames from pca_scores
+pca_scores$SampleID <- rownames(pca_scores)
+
+#Plot PCA using ggplot2 with labels for each point
+pca_plot <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = Condition, shape = Cohort)) +
+  geom_point(size = 4) +
+  geom_text_repel(aes(label = SampleID), size = 3, max.overlaps = Inf) +
+  labs(title = "PCA CHECK: Combat-corrected, Aggregated Data",
+       subtitle = "PCA of Gene Expression Data",
+       x = "PC1 (Variance Explained)",
+       y = "PC2 (Variance Explained)",
+       color = "Condition",
+       shape = "Cohort") +
+  theme_minimal(base_size = 14) +
+  scale_color_manual(values = c("RIF" = "blue", "Control" = "red")) +
+  theme(legend.position = "top",
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+
+print(pca_plot)
+```
+
+REMOVING OUTLIERS
+```{r}
+#Remove outliers from the data
+samples_to_remove <- c("GSM1402432", "GSM1402357")
+filtered_data <- final_dataframe[, !(colnames(final_dataframe) %in% samples_to_remove)]
+filtered_pheno <- phenotype_data[!(rownames(phenotype_data) %in% samples_to_remove), ]
+
+#Perform PCA on the filtered data (transpose so that samples are rows)
+pca_result <- prcomp(t(filtered_data), center = TRUE, scale. = TRUE)
+
+#Create a PCA scores data frame and add phenotype information
+pca_scores <- as.data.frame(pca_result$x)
+pca_scores$Condition <- filtered_pheno$title
+pca_scores$Cohort <- filtered_pheno$batch
+
+pca_plot <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = Condition, shape = Cohort)) +
+  geom_point(size = 4) +
+  labs(title = "PCA CHECK: Combat-corrected, Aggregated Data (Outliers Removed)",
+       subtitle = "PCA of Gene Expression Data",
+       x = "PC1",
+       y = "PC2",
+       color = "Condition",
+       shape = "Cohort") +
+  theme_minimal(base_size = 14) +
+  scale_color_manual(values = c("RIF" = "blue", "Control" = "red")) +
+  theme(legend.position = "top",
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+
+print(pca_plot)
+```
+
+```{r}
+# Transpose the data so that each row represents a sample
+pca_result <- prcomp(t(filtered_data), center = TRUE, scale. = TRUE)
+pca_scores <- as.data.frame(pca_result$x)
+
+# Add phenotype information for plotting
+pca_scores$Condition <- filtered_pheno$title
+pca_scores$Cohort <- filtered_pheno$batch
+
+
+#Create the 3D scatter plot
+p <- plot_ly(
+  data = pca_scores,
+  x = ~PC1, y = ~PC2, z = ~PC3,
+  type = 'scatter3d',
+  mode = 'markers',
+  marker = list(size = 4),
+  color = ~Condition,  # Colors based on Condition
+  symbol = ~Cohort,
+  colors = c("red", "blue") 
+)
+
+#Layout customization
+p <- p %>% layout(
+  title = "3D PCA: Combat-corrected, Aggregated Data (Outliers Removed)",
+  scene = list(
+    xaxis = list(title = "PC1"),
+    yaxis = list(title = "PC2"),
+    zaxis = list(title = "PC3")
+  )
+)
+
+#Display the plot
+p
+```
+
+
+DE analysis
+```{r}
+# Align final_dataframe columns with phenotype_data rows
+filtered_data <- filtered_data[, match(rownames(filtered_pheno), colnames(filtered_data))]
+
+# Check if there are any mismatches:
+if(any(is.na(match(rownames(filtered_pheno), colnames(filtered_data))))) {
+  stop("Some GSM accessions in phenotype_data do not match the column names in final_dataframe.")
+}
+
+# Convert the condition column to a factor (if not already)
+filtered_pheno$title <- factor(filtered_pheno$title, levels = c("Control", "RIF"))
+
+# Create a design matrix based on the condition (Control vs RIF)
+design <- model.matrix(~0 + filtered_pheno$title)
+colnames(design) <- levels(filtered_pheno$title)
+
+fit <- lmFit(filtered_data, design)
+contrast_matrix <- makeContrasts(RIFvsControl = RIF - Control, levels = design)
+fit2 <- contrasts.fit(fit, contrast_matrix)
+fit2 <- eBayes(fit2)
+
+results <- topTable(fit2, coef = "RIFvsControl", number = Inf, adjust.method = "BH", sort.by = "P")
+significant_genes <- results[results$P.Value < 0.05, ]
+
+head(results)
+```
+PCA CHECK
+PCA of data after background correction, normalization, and batch correction
+```{r}
+# Perform PCA (transpose so that samples are rows)
+pca_result <- prcomp(t(filtered_data), center = TRUE, scale. = TRUE)
+
+# Convert PCA results to a data frame
+pca_scores <- as.data.frame(pca_result$x)
+
+# Add condition info from phenotype_data (and batch if desired)
+pca_scores$Condition <- filtered_pheno$title
+# Optional: if you want to also see batch information in the plot, uncomment:
+# pca_scores$Batch <- phenotype_data$batch
+
+# Visualize PCA with ggplot2
+library(ggplot2)
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = Condition)) +
+  geom_point(size = 4) +
+  labs(title = "PCA of Gene Expression Data",
+       x = paste0("PC1 (", round(summary(pca_result)$importance[2,1]*100, 1), "%)"),
+       y = paste0("PC2 (", round(summary(pca_result)$importance[2,2]*100, 1), "%)")) +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+```
+PCA by batch
+```{r}
+
+# (B) Perform PCA (transpose so samples are rows)
+pca_result <- prcomp(t(filtered_data), center = TRUE, scale. = TRUE)
+
+# (C) Convert PCA results to a data frame
+pca_scores <- as.data.frame(pca_result$x)
+
+# (D) Color by Batch
+pca_scores$Batch <- factor(filtered_pheno$batch)
+
+# (E) Plot PCA with ggplot2, colored by Batch
+library(ggplot2)
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = Batch)) +
+  geom_point(size = 4) +
+  labs(
+    title = "PCA Colored by Batch",
+    x = paste0("PC1 (", round(summary(pca_result)$importance[2,1] * 100, 1), "%)"),
+    y = paste0("PC2 (", round(summary(pca_result)$importance[2,2] * 100, 1), "%)")
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+PCA by biopsy timing
+```{r}
+# (B) Perform PCA
+pca_result <- prcomp(t(filtered_data), center = TRUE, scale. = TRUE)
+pca_scores <- as.data.frame(pca_result$x)
+
+# (C) Add biopsy timing from phenotype_data
+pca_scores$Timing <- factor(filtered_pheno$biopsy_timing)
+
+# (D) Plot PCA colored by biopsy timing
+library(ggplot2)
+ggplot(pca_scores, aes(x = PC1, y = PC2, color = Timing)) +
+  geom_point(size = 4) +
+  labs(
+    title = "PCA Colored by Biopsy Timing",
+    x = paste0("PC1 (", round(summary(pca_result)$importance[2,1] * 100, 1), "%)"),
+    y = paste0("PC2 (", round(summary(pca_result)$importance[2,2] * 100, 1), "%)")
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+```
+Heat map of DE genes (according to p-value)
+```{r}
+#Choose the top N genes based on p-value or adjusted p-value
+topN <- 100
+sorted_results <- results[order(results$P.Value), ]
+top_genes <- rownames(sorted_results)[1:topN]
+
+#Subset final_dataframe to just those top genes
+heatmap_data <- filtered_data[top_genes, , drop = FALSE]
+
+sample_annotation <- data.frame(
+  Condition = factor(filtered_pheno$title),
+  row.names = rownames(filtered_pheno)  # must match columns of heatmap_data
+)
+pheatmap(
+  mat = heatmap_data,
+  scale = "row",              
+  annotation_col = sample_annotation,
+  show_rownames = FALSE,    
+  clustering_method = "complete",
+  clustering_distance_rows = "euclidean",
+  clustering_distance_cols = "euclidean",
+  main = paste("Heatmap of Top", topN, "DE Genes")
+)
+```
+
+Renaming and adjust age column (prep for covariate DE analysis)
+```{r}
+filtered_pheno <- filtered_pheno %>% rename(previous_transfers = characteristics_ch1.8)
+filtered_pheno <- filtered_pheno %>% rename(age = characteristics_ch1.6)
+filtered_pheno <- filtered_pheno %>% rename(embryotransfers = characteristics_ch1.9)
+
+#adjust age column
+filtered_pheno$age <- gsub("age:", "", filtered_pheno$age)
+filtered_pheno$age <- trimws(filtered_pheno$age)
+filtered_pheno$age <- as.numeric(filtered_pheno$age)
+
+#define ageGroup column and classify each sample 
+filtered_pheno$ageGroup <- cut(
+  filtered_pheno$age,
+  breaks = c(19, 24, 29, 35, 39),
+  labels = c("20-24", "25-29", "30-35", "36-39"),
+  right = TRUE
+)
+levels(filtered_pheno$ageGroup) <- make.names(levels(filtered_pheno$ageGroup))
+
+# First, clear up N/A so all values are numeric (sub w/ 0) then remove the additional txt
+
+filtered_pheno$embryotransfers[grepl("N/A", filtered_pheno$embryotransfers, ignore.case = TRUE)] <- NA
+cleaned_values <- ifelse(is.na(filtered_pheno$embryotransfers), NA, as.numeric(gsub("[^0-9]", "", filtered_pheno$embryotransfers)))
+filtered_pheno$embryotransfers <- cleaned_values
+
+#Now, calculate the median of non-zero values and sub median for the 0s (originally the N/A)
+median_value <- median(filtered_pheno$embryotransfers, na.rm = TRUE)
+filtered_pheno$embryotransfers[is.na(filtered_pheno$embryotransfers)] <- median_value
+
+```
+
+****DE ANALYSIS LOOP WITH COVARIATES
+```{r}
+#Define your condition as a factor with the relevant baseline level
+filtered_pheno$title <- factor(filtered_pheno$title, levels = c("Control", "RIF"))
+
+#Identify columns that will be looped over
+covariates <- c("biopsy_timing", "embryotransfers", "ageGroup")
+
+#Prepare a list to store results from each model
+results_list <- list()
+
+#Loop over covariates
+for (covar in covariates) {
+
+  #Build a formula that includes 'title' (Control vs RIF) plus the covariate
+  #'~0 + title + ...': will ensure separate columns for Control & RIF (rather than an intercept)
+  design_formula <- as.formula(paste("~ 0 + title +", covar))
+
+  design <- model.matrix(design_formula, data = filtered_pheno)
+  # FYI: each time the loop runs for each covariate a new design matrix is generated so the final one within the environment will only list the last variable it dealt with 
+  colnames(design)[1:2] <- c("Control", "RIF")
+
+  fit <- limma::lmFit(filtered_data, design)
+  contrast_matrix <- limma::makeContrasts(RIFvsControl = RIF - Control, levels = design)
+  fit2 <- limma::contrasts.fit(fit, contrast_matrix)
+  fit2 <- limma::eBayes(fit2)
+
+  results_loop <- limma::topTable(fit2, coef = "RIFvsControl", number = Inf, 
+                         adjust.method = "BH", sort.by = "P")
+  results_list[[covar]] <- results_loop
+}
+
+
+#Loop to assess significant genes for each covariate
+for (covar in covariates) {
+  cat("\nTop genes significant in model with covariate:", covar, "\n")
+  sig_genes <- results_list[[covar]][results_list[[covar]]$P.Value< 0.05, ]
+  print(head(sig_genes))
+}
+
+```
+
+PCA model for each covariate analysis
+```{r}
+# Loop over each covariate model
+for (covar in covariates) {
+  # 1.Get the DE results for the current covariate
+  res <- results_list[[covar]]
+  
+  # 2.Filter for significant genes using cutoff
+  sig <- res[res$P.Value < 0.05, ]
+  
+  # 3.Determining the set of genes to use for PCA
+  #If 100 significant genes are available --> top 100 most variable among them
+  if (nrow(sig) >= 100) {
+    genes_sig <- rownames(sig)
+    expr_sig <- filtered_data[genes_sig, , drop = FALSE]
+    # Calculate variance for each gene across samples
+    gene_vars <- apply(expr_sig, 1, var)
+    # Order by variance (descending) and pick the top 100 genes
+    top_genes <- names(sort(gene_vars, decreasing = TRUE))[1:100]
+  } else {
+    # If <100 significant genes --> use top 100 most variable genes overall (from whole dataset)
+    gene_vars <- apply(filtered_data, 1, var)
+    top_genes <- names(sort(gene_vars, decreasing = TRUE))[1:100]
+  }
+  
+  # 4.Subset the expression data to these genes
+  expr_subset <- filtered_data[top_genes, , drop = FALSE]
+  
+  # 5.Run PCA
+  pca_res <- prcomp(t(expr_subset), scale. = TRUE)
+  pca_plot <- autoplot(pca_res, data = filtered_pheno, colour = "title") +
+    ggtitle(paste("PCA for covariate:", covar, "\n(top 100 genes subset)")) +
+    theme_bw()
+  print(pca_plot)
+}
+
+```
+
+
+
+
+
+EXTRA:
+BIOPSY TIMING CORRECTION
+```{r}
+# Isolate control samples from "cohort 2, batch 1"
+control_samples_timing <- phenotype_data %>%
+  filter(grepl("Control", title), grepl("batch: cohort 2, batch 1", batch)) %>%
+  rownames()
+
+# Prepare biopsy timing factor
+phenotype_data$biopsy_timing <- factor(phenotype_data$biopsy_timing, levels = c(5, 6, 7, 8))
+phenotype_data$biopsy_timing <- relevel(phenotype_data$biopsy_timing, ref = "7")  # LH+7 as reference
+
+# Create design matrix for biopsy timing
+design_timing <- model.matrix(~ biopsy_timing, data = phenotype_data[control_samples_timing, ])
+
+# Fit linear model for biopsy timing effect
+fit_timing <- lmFit(normalized_data$M[, control_samples_timing], design_timing)
+
+# Correct ALL samples for biopsy timing
+corrected_expr_timing <- normalized_data$M
+for(i in seq_len(ncol(corrected_expr_timing))) {
+  timing <- as.character(phenotype_data$biopsy_timing[i])
+  if (timing != "7") {  # Only correct non-reference levels
+    corrected_expr_timing[, i] <- corrected_expr_timing[, i] - 
+      fit_timing$coefficients[, paste0("biopsy_timing", timing)]
+  }
+}
+
+```

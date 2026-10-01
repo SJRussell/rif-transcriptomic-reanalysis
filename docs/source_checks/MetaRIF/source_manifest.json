@@ -1,0 +1,26 @@
+{
+  "retrieved_utc": "2026-09-08T23:23:19.651935+00:00",
+  "files": [
+    {
+      "file": "MetaRIF.R",
+      "url": "https://raw.githubusercontent.com/YJ-STU/MetaRIF/dca97d587b9ba437f308aa2f15086e6f294d101d/MetaRIF.R",
+      "commit": "dca97d587b9ba437f308aa2f15086e6f294d101d",
+      "bytes": 4993,
+      "sha256": "31c62238cc30826387fd9ffdb294794dd04a8128bb5b33bee51da6e0d64cb13c"
+    },
+    {
+      "file": "MetaRIF_classifier_gene_plus.rda",
+      "url": "https://raw.githubusercontent.com/YJ-STU/MetaRIF/dca97d587b9ba437f308aa2f15086e6f294d101d/MetaRIF_classifier_gene_plus.rda",
+      "commit": "dca97d587b9ba437f308aa2f15086e6f294d101d",
+      "bytes": 21550368,
+      "sha256": "7e23027c15e53ff66cf1085815fbf7781282d03dc112a01f0b437c2ce3ac8c54"
+    },
+    {
+      "file": "README.md",
+      "url": "https://raw.githubusercontent.com/YJ-STU/MetaRIF/dca97d587b9ba437f308aa2f15086e6f294d101d/README.md",
+      "commit": "dca97d587b9ba437f308aa2f15086e6f294d101d",
+      "bytes": 690,
+      "sha256": "d5e79bfa21fcda7ea05c87d7e1510dfc67b2bf414bda9f243e1c0d7dd0dc53fe"
+    }
+  ]
+}

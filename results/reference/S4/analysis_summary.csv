@@ -1,0 +1,12 @@
+"analysis","genes","DE","up","down"
+"primary",16008,1840,834,1006
+"strict_all_studies",11349,1532,656,876
+"total_weights",16008,1642,746,896
+"equal_weights",16008,1694,769,925
+"GSE250130_mixed_time",16008,1629,786,843
+"PRJNA576073_reverse",16008,1854,843,1011
+"GSE58144_without_timing",16008,2447,1098,1349
+"GSE58144_all115",16008,1722,753,969
+"Bui2024_unadjusted_all",16008,1204,528,676
+"Bui2024_unadjusted_complete",16008,1270,566,704
+"GSE250130_composition_adjusted",16008,1979,905,1074

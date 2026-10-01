@@ -1,0 +1,170 @@
+---
+title: "Lai/GSE183837 scRNA-seq analysis"
+output: html_notebook
+---
+
+Load libraries
+```{r}
+library(tidyverse)
+library(dplyr)
+library(Seurat)
+library(janitor)
+library(harmony)
+library(ggplot2)
+library(scCustomize)
+library(R.utils)
+```
+
+create objects
+```{r}
+con1 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/con1")
+con1 <- CreateSeuratObject(counts = con1, min.cells = 3, min.features = 200)
+con2 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/con2")
+con2 <- CreateSeuratObject(counts = con2, min.cells = 3,min.features = 200)
+con3 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/con3")
+con3 <- CreateSeuratObject(counts = con3,min.cells = 3, min.features = 200)
+rif1 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/rif1")
+rif1 <- CreateSeuratObject(counts = rif1,min.cells = 3, min.features = 200)
+rif2 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/rif2")
+rif2 <- CreateSeuratObject(counts = rif2, min.cells = 3,min.features = 200)
+rif3 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/rif3")
+rif3 <- CreateSeuratObject(counts = rif3,min.cells = 3, min.features = 200)
+rif4 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/rif4")
+rif4 <- CreateSeuratObject(counts = rif4, min.cells = 3,min.features = 200)
+rif5 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/rif5")
+rif5 <- CreateSeuratObject(counts = rif5,min.cells = 3, min.features = 200)
+rif6 <- Read10X(data.dir = "<original_archive>/scRNA_GSE183837/rif6")
+rif6 <- CreateSeuratObject(counts = rif6,min.cells = 3, min.features = 200)
+```
+
+```{r}
+con1$id <- "con1"
+con2$id <- "con2"
+con3$id <- "con3"
+rif1$id <- "rif1"
+rif2$id <- "rif2"
+rif3$id <- "rif3"
+rif4$id <- "rif4"
+rif5$id <- "rif5"
+rif6$id <- "rif6"
+
+con1$sample <- "Control"
+con2$sample <- "Control"
+con3$sample <- "Control"
+rif1$sample <- "RIF"
+rif2$sample <- "RIF"
+rif3$sample <- "RIF"
+rif4$sample <- "RIF"
+rif5$sample <- "RIF"
+rif6$sample <- "RIF"
+```
+
+```{r}
+saveRDS(con1, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_con1.RDS")
+saveRDS(con2, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_con2.RDS")
+saveRDS(con3, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_con3.RDS")
+
+saveRDS(rif1, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif1.RDS")
+saveRDS(rif2, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif2.RDS")
+saveRDS(rif3, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif3.RDS")
+saveRDS(rif4, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif4.RDS")
+saveRDS(rif5, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif5.RDS")
+saveRDS(rif6, file = "<original_archive>/scRNA_GSE183837/RDS_files/GSE183837_rif6.RDS")
+
+
+```
+
+merge
+```{r}
+lai_all <- merge(con1, y = list(con2, con3, rif1, rif2, rif3, rif4, rif5, rif6), 
+                add.cell.ids = c("con1", "con2", "con3", "rif1", "rif2", "rif3", "rif4", "rif5", "rif6"))
+
+#remove individual files
+rm(con1, con2, con3, rif1, rif2, rif3, rif4, rif5, rif6)
+
+lai_all[["percent.mt"]] <- PercentageFeatureSet(lai_all, pattern = "^MT-")
+lai_all <- subset(lai_all, subset = percent.mt < 40)
+
+```
+
+QC
+```{r}
+#Normalize
+lai_all <- NormalizeData(lai_all)
+#Find variable features
+lai_all <- FindVariableFeatures(lai_all)
+#Scale
+lai_all <- ScaleData(lai_all)
+```
+
+
+```{r}
+#Run PCA
+lai_all <- RunPCA(lai_all)
+ElbowPlot(lai_all)
+#identify where the elbow is --> around 9
+ElbowPlot(lai_all, ndims = 50, reduction = "pca")
+```
+
+```{r}
+# subset_all<-FindVariableFeatures(lai_all, selection.method = "vst", nfeatures = 2000)
+# VariableFeaturePlot(subset_all)
+# subset_all <- ScaleData(subset_all)
+# subset_all <- RunPCA(subset_all)
+
+```
+
+```{r}
+# ElbowPlot(subset_all)
+# #identify where the elbow is --> around 9
+# ElbowPlot(subset_all, ndims = 50, reduction = "pca")
+```
+
+```{r}
+lai_all<-FindNeighbors(lai_all, dims = 1:20)
+lai_all<-FindClusters(lai_all, resolution = 0.8)
+lai_all<-RunUMAP(lai_all, dims = 1:20)
+DimPlot(lai_all, reduction = "umap", label = TRUE, repel = TRUE)
+```
+
+```{r}
+# subset_all<-FindNeighbors(subset_all, dims = 1:20)
+# subset_all<-FindClusters(subset_all, resolution = 0.8)
+# subset_all<-RunUMAP(subset_all, dims = 1:20)
+# DimPlot(subset_all, reduction = "umap", label = TRUE, repel = TRUE)
+```
+
+integrate samples together
+```{r}
+lai_cca <- IntegrateLayers(
+  object = lai_all,
+  method = CCAIntegration,   # Canonical Correlation Analysis
+  orig.reduction = "pca",    # Use PCA for alignment
+  new.reduction = "integrated.cca",  # Output integrated reduction
+  verbose = FALSE
+)
+
+saveRDS(lai_cca, file = "<original_archive>/scRNA_GSE183837/lai_cca_may28")
+
+```
+
+```{r}
+lai_cca <- FindNeighbors(lai_cca, reduction = "integrated.cca", dims = 1:10)
+lai_cca <- FindClusters(lai_cca, resolution = 0.85)
+
+#Visualization using integrated.cca
+lai_cca <- RunTSNE(lai_cca, reduction = "integrated.cca", dims = 1:10)
+```
+
+```{r}
+#Visualize with t-SNE
+DimPlot(lai_cca, reduction = "tsne", group.by = "seurat_clusters", label = T)
+DimPlot(lai_cca, reduction = "tsne", group.by = "sample", alpha = 0.5)
+DimPlot(lai_cca, reduction = "tsne", group.by = "id", alpha = 0.5)
+```
+
+
+```{r}
+VlnPlot(lai_cca, features = "nCount_RNA", group.by = "orig.ident")
+```
+

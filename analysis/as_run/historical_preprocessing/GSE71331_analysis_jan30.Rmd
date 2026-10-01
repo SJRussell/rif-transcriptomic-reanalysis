@@ -1,0 +1,245 @@
+---
+title: "GSE71331"
+output: html_notebook
+---
+
+Load necessary libraries
+```{r}
+library(GEOquery)
+library(Biobase)
+library(limma)
+library(affy)
+library(R.utils)
+library(dplyr)
+library(sva)
+library(plotly)
+library(tibble)
+```
+
+Download metadata full series.matrix file
+```{r}
+#Study 1
+gse<-getGEO('GSE71331')
+gse<-gse[[1]]
+phenotype_data<-pData(gse)
+geo_accession<- "GSE71331"
+```
+Download the datasets that once untarred, will reveal the individual txt/CEL files (the raw data we want to use for analysis)
+```{r}
+gse_dir <- "<original_archive>/MICROARRAY_DATA/GSE71331"
+output_dir<-"<original_archive>/MICROARRAY_DATA/GSE71331/txt_files"
+```
+Update phenotype conditions: clearly state "control" or "RIF"
+- "patients:ch1" is the column where the conditions are stated; check this to ensure it aligns with pheno column name
+```{r}
+phenotype_data <- phenotype_data %>%
+  mutate(`characteristics_ch1` = case_when(
+    grepl("Control", `patients:ch1`, ignore.case = TRUE) ~ "Control",
+    grepl("failure", `patients:ch1`, ignore.case = TRUE) ~ "RIF",
+    TRUE ~ title #(Keep original value if neither is matched)
+  ))
+phenotype_data <- phenotype_data %>%
+  rename(condition = characteristics_ch1)
+
+#write.csv(phenotype_data, file = "phenotype_data_GSE71331.csv", row.names = TRUE)
+
+```
+
+Read the raw data
+```{r}
+#Reload the txt files
+txt_files <- list.files(output_dir, pattern = "\\.txt$", full.names = TRUE)
+raw_data <- read.maimages(txt_files, source="agilent", green.only = TRUE)
+```
+Background correction
+```{r}
+bg_corrected_data <- backgroundCorrect(raw_data, method="normexp")
+```
+Normalization
+```{r}
+norm_data <-normalizeBetweenArrays(bg_corrected_data, method = "quantile")
+norm_data$E<- log2(norm_data$E + 1)
+
+```
+
+data check: density plots
+```{r, fig.height=10, fig.width=9}
+# Density plot for raw data (before normalization)
+plot(density(bg_corrected_data$E[, 1]), 
+     main = "Density Plot: Before Normalization", 
+     xlab = "Expression Intensity", 
+     col = 1, lwd = 2)
+for (i in 2:ncol(bg_corrected_data$E)) {
+  lines(density(bg_corrected_data$E[, i]), col = i, lwd = 2)
+}
+legend("topright", legend = colnames(bg_corrected_data$E), col = 1:ncol(bg_corrected_data$E), lwd = 2, cex = 0.2)
+
+# Density plot for normalized data
+plot(density(norm_data$E[, 1]), 
+     main = "Density Plot: After Normalization", 
+     xlab = "Expression Intensity", 
+     col = 1, lwd = 2)
+for (i in 2:ncol(norm_data$E)) {
+  lines(density(norm_data$E[, i]), col = i, lwd = 2)
+}
+legend("topright", legend = colnames(norm_data$E), col = 1:ncol(norm_data$E), lwd = 1, cex = 0.5)
+
+```
+
+data check: box plots
+```{r}
+# Box plot for raw data (before normalization)
+boxplot(bg_corrected_data$E, main = "Before Normalization", las = 2)
+boxplot(norm_data$E, main = "After Normalization", las = 2)
+```
+
+```{r}
+# Perform PCA on normalized data
+pca <- prcomp(t(norm_data$E), scale. = TRUE)  # Transpose so samples are rows and genes are columns
+
+# Create a PCA data frame for plotting
+pca_df <- data.frame(
+  PC1 = pca$x[, 1],  # First principal component
+  PC2 = pca$x[, 2],  # Second principal component
+  Condition = phenotype_data$condition  # Add condition information from phenotype_data
+)
+
+# Plot PCA with ggplot2
+library(ggplot2)
+ggplot(pca_df, aes(x = PC1, y = PC2, color = Condition)) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  ggtitle("PCA: Clustering by Condition") +
+  xlab(paste0("PC1 (", round(summary(pca)$importance[2, 1] * 100, 2), "% variance)")) +
+  ylab(paste0("PC2 (", round(summary(pca)$importance[2, 2] * 100, 2), "% variance)"))
+
+
+```
+3D plot
+```{r}
+
+# Perform PCA 
+pca <- prcomp(t(norm_data$E), scale. = TRUE)
+pca_df <- data.frame(
+  PC1 = pca$x[, 1],
+  PC2 = pca$x[, 2],
+  PC3 = pca$x[, 3],
+  Condition = phenotype_data$condition
+)
+fig <- plot_ly(
+  data = pca_df,
+  x = ~PC1, 
+  y = ~PC2, 
+  z = ~PC3,
+  color = ~Condition,
+  colors = c("red", "blue"),
+  marker = list(size = 5),
+  type = "scatter3d",
+  mode = "markers"
+)
+
+#layout details
+fig <- fig %>%
+  layout(
+    scene = list(
+      xaxis = list(title = paste0("PC1 (", round(summary(pca)$importance[2, 1] * 100, 2), "%)")),
+      yaxis = list(title = paste0("PC2 (", round(summary(pca)$importance[2, 2] * 100, 2), "%)")),
+      zaxis = list(title = paste0("PC3 (", round(summary(pca)$importance[2, 3] * 100, 2), "%)"))
+    )
+  )
+fig
+```
+
+Annotation
+Download 
+```{r}
+# Define the file path (update this to your local file path)
+file_path <- "<original_archive>/MICROARRAY_DATA/GSE71331/GSE71331_annotation.txt"
+
+# Read the file into R as a data frame
+platform_data <- read.delim(file_path, header = TRUE, stringsAsFactors = FALSE)
+
+# Remove rows with missing or blank gene symbols
+platform_data <- platform_data %>%
+  filter(!is.na(GeneSymbol) & GeneSymbol != "")
+
+```
+
+Prep DF for annotation (take expression data and align with ProbeUID)
+```{r}
+#Convert the expression matrix to a data frame and add ProbeUID from norm_data$genes
+expr_df <- as.data.frame(norm_data$E)
+if(nrow(expr_df) != nrow(norm_data$genes)) {
+  stop("Mismatch: The number of rows in norm_data$E does not match the number of entries in norm_data$genes.")
+}
+expr_df$ProbeUID <- norm_data$genes$ProbeUID
+
+#Ensure that the IDs in both datasets are characters for proper comparison
+expr_df$ProbeUID <- as.character(expr_df$ProbeUID)
+platform_data$ProbeID <- as.character(platform_data$ProbeID)
+
+# Find overlapping ProbeIDs
+common_ids <- intersect(expr_df$ProbeUID, platform_data$ProbeID)
+cat("Number of overlapping IDs:", length(common_ids), "\n")
+
+#filter the aggregated expression data to include only overlapping probes
+expr_common <- expr_df %>% filter(ProbeUID %in% common_ids)
+
+#Code below assumes your aggregated data frame has the first column named "ProbeUID" and all other columns correspond to sample files with long names
+#move ProbeUID to be the first column
+expr_common <- expr_common %>% select(ProbeUID, everything())
+
+old_cols <- colnames(expr_common)
+new_cols <- c( "ProbeUID", sapply(old_cols[-1], function(x) sub(".*(GSM\\d+).*", "\\1", x))
+)
+colnames(expr_common) <- new_cols
+
+```
+
+Create the final annotation file
+```{r}
+# Subset the platform annotation according to the common IDs
+plat_sub <- platform_data %>%
+  filter(ProbeID %in% common_ids)
+
+# Merge into one new object
+combined_annot <- inner_join(
+  expr_common,
+  plat_sub,
+  by = c("ProbeUID" = "ProbeID")
+)
+```
+
+
+```{r}
+
+## 1) Grab just the expression columns (all numeric sample columns)
+expr_mat <- combined_annot %>%
+  dplyr::select(where(is.numeric)) %>%
+  as.matrix()
+
+## 2) Set rownames to GeneSymbol
+gene_ids <- combined_annot$GeneSymbol
+rownames(expr_mat) <- gene_ids
+
+## 3) Collapse duplicate probes → one row per gene
+expr71331 <- limma::avereps(expr_mat, ID = rownames(expr_mat))
+
+## 4) Write gene × sample matrix
+#write.csv(expr71331, "GSE71331_matrix_nov18.csv", row.names = TRUE)
+
+```
+
+Merge based on gene symbol then add gene symbols for row names
+```{r}
+# combined_annot_gene <- combined_annot %>%
+#   group_by(GeneSymbol) %>%
+#   summarize(across(where(is.numeric), \(x) mean(x, na.rm = TRUE))
+# )
+
+# combined_annot_gene <- combined_annot_gene %>% column_to_rownames("GeneSymbol")
+# write.csv(combined_annot_gene, file = "GSE71331_matrix.csv", row.names = TRUE)
+
+```
+
+

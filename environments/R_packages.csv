@@ -1,0 +1,317 @@
+"Package","Version","Priority","Depends","Imports","LinkingTo"
+"AnnotationDbi","1.74.0",NA,"R (>= 2.7.0), methods, stats4, BiocGenerics (>= 0.29.2),
+Biobase (>= 1.17.0), IRanges","DBI, RSQLite, S4Vectors (>= 0.9.25), stats, KEGGREST",NA
+"BH","1.90.0-1",NA,NA,NA,NA
+"Biobase","2.72.0",NA,"R (>= 2.10), BiocGenerics (>= 0.27.1), utils","methods",NA
+"BiocGenerics","0.58.1",NA,"R (>= 4.0.0), methods, utils, graphics, stats, generics","methods, utils, graphics, stats",NA
+"BiocManager","1.30.27",NA,NA,"utils",NA
+"BiocParallel","1.46.0",NA,"methods, R (>= 4.1.0)","stats, utils, futile.logger, parallel, snow, codetools","BH (>= 1.87.0), cpp11"
+"BiocVersion","3.23.1",NA,"R (>= 4.4.0)",NA,NA
+"Biostrings","2.80.1",NA,"R (>= 4.1.0), BiocGenerics (>= 0.37.0), S4Vectors (>=
+0.27.12), IRanges (>= 2.31.2), XVector (>= 0.37.1), Seqinfo","methods, grDevices, stats, crayon","S4Vectors, IRanges, XVector"
+"DBI","1.3.0",NA,"methods, R (>= 3.0.0)",NA,NA
+"DOSE","4.5.0",NA,"R (>= 3.5.0)","AnnotationDbi, BiocParallel, fgsea, ggplot2, GOSemSim (>=
+2.31.2), methods, qvalue, reshape2, stats, utils, yulab.utils
+(>= 0.1.6)",NA
+"GO.db","3.23.1",NA,"R (>= 2.7.0), methods, AnnotationDbi (>= 1.73.0)",NA,NA
+"GOSemSim","2.38.3",NA,"R (>= 4.2.0)","AnnotationDbi, DBI, digest, GO.db, methods, rlang, stats,
+utils, yulab.utils (>= 0.2.3)","Rcpp"
+"HDO.db","1.0.0",NA,"R (>= 4.2.0)","AnnotationDbi, DBI, methods, utils",NA
+"IRanges","2.46.0",NA,"R (>= 4.0.0), methods, utils, stats, BiocGenerics (>= 0.53.2),
+S4Vectors (>= 0.47.6)","stats4","S4Vectors"
+"KEGGREST","1.51.1",NA,"R (>= 3.5.0)","methods, httr, png, Biostrings",NA
+"ModelMetrics","1.2.2.2",NA,"R (>= 3.2.2)","Rcpp, data.table","Rcpp"
+"R6","2.6.1",NA,"R (>= 3.6)",NA,NA
+"RColorBrewer","1.1-3",NA,"R (>= 2.0.0)",NA,NA
+"RSQLite","3.53.3",NA,"R (>= 3.1.0)","bit64, blob (>= 1.2.0), DBI (>= 1.2.0), memoise, methods,
+pkgconfig, rlang","cpp11 (>= 0.4.0)"
+"Rcpp","1.1.2",NA,"R (>= 3.5.0)","methods, utils",NA
+"RcppArmadillo","15.4.2-1",NA,"R (>= 3.3.0)","Rcpp (>= 1.1.1), stats, utils, methods","Rcpp"
+"RcppEigen","0.3.4.0.2",NA,"R (>= 3.6.0)","Rcpp (>= 0.11.0), stats, utils","Rcpp"
+"S4Vectors","0.50.1",NA,"R (>= 4.1.0), methods, utils, stats, stats4, BiocGenerics (>=
+0.53.2)",NA,NA
+"S7","0.2.2",NA,"R (>= 3.5.0)","utils",NA
+"SQUAREM","2026.1",NA,"R (>= 4.0)",NA,NA
+"STRINGdb","2.24.0",NA,"R (>= 2.14.0)","png, sqldf, plyr, igraph, httr, methods, RColorBrewer, gplots,
+hash, plotrix",NA
+"Seqinfo","1.2.0",NA,"methods, BiocGenerics","stats, S4Vectors (>= 0.47.6), IRanges",NA
+"XVector","0.52.0",NA,"R (>= 4.0.0), methods, BiocGenerics (>= 0.37.0), S4Vectors (>=
+0.27.12), IRanges (>= 2.43.8)","methods, utils, stats, tools, BiocGenerics, S4Vectors, IRanges","S4Vectors, IRanges"
+"aisdk","1.4.12",NA,"R (>= 4.1.0)","R6, httr2, jsonlite, rlang, yaml, callr, processx, memoise,
+digest, parallel, stats, tools, utils, methods, base64enc, curl",NA
+"ape","5.8-1",NA,"R (>= 3.2.0)","nlme, lattice, graphics, methods, stats, utils, parallel, Rcpp
+(>= 0.12.0), digest","Rcpp"
+"aplot","0.3.1",NA,"R (>= 4.1.0)","ggfun (>= 0.1.3), gtable, ggplot2, ggplotify, patchwork,
+magrittr, methods, utils, yulab.utils (>= 0.1.9), pillar",NA
+"askpass","1.2.1",NA,NA,"sys (>= 2.1)",NA
+"assertthat","0.2.1",NA,NA,"tools",NA
+"babelgene","22.9",NA,"R (>= 3.4)","dplyr, methods, rlang",NA
+"base64enc","0.1-6",NA,"R (>= 2.9.0)",NA,NA
+"bit","4.6.0",NA,"R (>= 3.4.0)",NA,NA
+"bit64","4.8.6",NA,"R (>= 3.5.0)","bit (>= 4.0.0), graphics, methods, stats, utils",NA
+"bitops","1.1-0",NA,NA,NA,NA
+"blob","1.3.0",NA,NA,"methods, rlang, vctrs (>= 0.2.1)",NA
+"bslib","0.12.0",NA,"R (>= 2.10)","base64enc, cachem, fastmap (>= 1.1.1), grDevices, htmltools
+(>= 0.5.8), jquerylib (>= 0.1.3), jsonlite, lifecycle, memoise
+(>= 2.0.1), mime, rlang, sass (>= 0.4.9)",NA
+"caTools","1.18.4",NA,"R (>= 3.6.0)","bitops",NA
+"cachem","1.1.0",NA,NA,"rlang, fastmap (>= 1.2.0)",NA
+"callr","3.8.0",NA,"R (>= 3.4)","otel (>= 0.2.0), processx (>= 3.6.1), R6, utils",NA
+"caret","7.0-1",NA,"ggplot2, lattice (>= 0.20), R (>= 3.2.0)","e1071, foreach, grDevices, methods, ModelMetrics (>= 1.2.2.2),
+nlme, plyr, pROC, recipes (>= 0.1.10), reshape2, stats, stats4,
+utils, withr (>= 2.0.0)",NA
+"chron","2.3-63",NA,"R (>= 2.12.0)","graphics, stats",NA
+"cli","3.6.6",NA,"R (>= 3.4)","utils",NA
+"clipr","0.8.1",NA,NA,"utils",NA
+"clock","0.7.4",NA,"R (>= 4.0.0)","cli (>= 3.6.4), lifecycle (>= 1.0.4), rlang (>= 1.1.5), tzdb
+(>= 0.5.0), vctrs (>= 0.6.5)","cpp11 (>= 0.5.2), tzdb (>= 0.5.0)"
+"clusterProfiler","4.20.0",NA,"R (>= 4.2.0)","aisdk, AnnotationDbi, dplyr, enrichit (>= 0.1.1), enrichplot
+(>= 1.9.3), ggplot2, GO.db, GOSemSim (>= 2.27.2), gson (>=
+0.0.7), httr, igraph, jsonlite, magrittr, methods, plyr,
+qvalue, rlang, stats, tidyr, utils, yulab.utils (>= 0.2.3)",NA
+"cowplot","1.2.0",NA,"R (>= 3.5.0)","ggplot2 (>= 3.5.2), grid, gtable, grDevices, methods, rlang,
+scales",NA
+"cpp11","0.5.5",NA,"R (>= 4.0.0)",NA,NA
+"crayon","1.5.3",NA,NA,"grDevices, methods, utils",NA
+"curl","8.0.0",NA,"R (>= 3.0.0)",NA,NA
+"data.table","1.18.6.1",NA,"R (>= 3.4.0)","methods",NA
+"diagram","1.6.5",NA,"R (>= 2.01), shape","stats, graphics",NA
+"digest","0.6.39",NA,"R (>= 3.3.0)","utils",NA
+"diptest","0.77-2",NA,NA,"graphics, stats",NA
+"dplyr","1.2.1",NA,"R (>= 4.1.0)","cli (>= 3.6.2), generics, glue (>= 1.3.2), lifecycle (>=
+1.0.5), magrittr (>= 1.5), methods, pillar (>= 1.9.0), R6,
+rlang (>= 1.1.7), tibble (>= 3.2.0), tidyselect (>= 1.2.0),
+utils, vctrs (>= 0.7.1)",NA
+"e1071","1.7-17",NA,NA,"graphics, grDevices, class, stats, methods, utils, proxy",NA
+"edgeR","4.10.1",NA,"R (>= 3.6.0), limma (>= 3.63.6)","methods, graphics, stats, utils, locfit",NA
+"enrichit","0.2.1",NA,"R (>= 3.5.0)","Matrix, methods, Rcpp (>= 1.0.10), rlang, stats, yulab.utils
+(> 0.2.1)","Rcpp, RcppEigen"
+"enrichplot","1.31.2",NA,"R (>= 4.2.0)","aplot (>= 0.2.1), DOSE (>= 3.31.2), ggfun (>= 0.1.7),
+ggnewscale, ggplot2 (>= 3.5.0), ggrepel (>= 0.9.0), ggtangle
+(>= 0.0.9), graphics, grid, igraph, methods, plyr, purrr,
+RColorBrewer, reshape2, rlang, stats, tidydr, utils,
+scatterpie, GOSemSim (>= 2.31.2), ggtree, yulab.utils (>=
+0.1.6)",NA
+"evaluate","1.0.5",NA,"R (>= 3.6.0)",NA,NA
+"farver","2.1.2",NA,NA,NA,NA
+"fastmap","1.2.0",NA,NA,NA,NA
+"fastmatch","1.1-8",NA,"R (>= 2.3.0)",NA,NA
+"fgsea","1.38.0",NA,"R (>= 4.1)","Rcpp, data.table, BiocParallel, stats, ggplot2 (>= 2.2.0),
+cowplot, grid, fastmatch, Matrix, scales, utils","Rcpp, BH"
+"fontBitstreamVera","0.1.1",NA,"R (>= 3.0.0)",NA,NA
+"fontLiberation","0.1.0",NA,"R (>= 3.0)",NA,NA
+"fontawesome","0.5.3",NA,"R (>= 3.3.0)","rlang (>= 1.0.6), htmltools (>= 0.5.1.1)",NA
+"fontquiver","0.2.1",NA,"R (>= 3.0.0)","fontBitstreamVera (>= 0.1.0), fontLiberation (>= 0.1.0)",NA
+"forcats","1.0.1",NA,"R (>= 4.1)","cli (>= 3.4.0), glue, lifecycle, magrittr, rlang (>= 1.0.0),
+tibble",NA
+"foreach","1.5.2",NA,"R (>= 2.5.0)","codetools, utils, iterators",NA
+"formatR","1.14",NA,"R (>= 3.2.3)",NA,NA
+"fs","2.1.0",NA,"R (>= 4.1)","methods",NA
+"futile.logger","1.4.9",NA,"R (>= 3.0.0)","utils, lambda.r (>= 1.1.0), futile.options",NA
+"futile.options","1.0.1",NA,"R (>= 2.8.0)",NA,NA
+"future","1.75.0",NA,"R (>= 3.2.0)","digest, globals (>= 0.18.0), listenv (>= 0.8.0), parallel,
+parallelly (>= 1.44.0), tools, utils",NA
+"future.apply","1.20.2",NA,"R (>= 3.2.0), future (>= 1.49.0)","globals, parallel, utils",NA
+"gdtools","0.5.1",NA,"R (>= 4.0.0)","fontquiver (>= 0.2.0), htmltools, Rcpp (>= 0.12.12),
+systemfonts (>= 1.3.1), tools","Rcpp"
+"generics","0.1.4",NA,"R (>= 3.6)","methods",NA
+"ggforce","0.5.0",NA,"ggplot2 (>= 3.5.0), R (>= 3.3.0)","grid, scales, MASS, tweenr (>= 0.1.5), gtable, rlang,
+polyclip, stats, grDevices, tidyselect, withr, utils,
+lifecycle, cli, vctrs, systemfonts","cpp11"
+"ggfun","0.2.1",NA,"R (>= 4.2.0)","cli, dplyr, ggplot2, graphics, grid, rlang, scales, utils,
+yulab.utils (>= 0.1.6)",NA
+"ggiraph","0.9.6",NA,NA,"cli, dplyr, gdtools (>= 0.5.0), ggplot2 (>= 4.0.0), grid,
+htmltools, htmlwidgets (>= 1.5), MASS, purrr, Rcpp (>= 1.1.0),
+rlang, S7 (>= 0.2.0), stats, systemfonts (>= 1.3.1), vctrs","Rcpp, systemfonts"
+"ggnewscale","0.5.2",NA,NA,"ggplot2 (>= 3.5.0)",NA
+"ggplot2","4.0.3",NA,"R (>= 4.1)","cli, grDevices, grid, gtable (>= 0.3.6), isoband, lifecycle (>
+1.0.1), rlang (>= 1.1.0), S7, scales (>= 1.4.0), stats, vctrs
+(>= 0.6.0), withr (>= 2.5.0)",NA
+"ggplotify","0.1.3",NA,"R (>= 3.4.0)","ggplot2, graphics, grDevices, grid, gridGraphics, rlang,
+yulab.utils",NA
+"ggraph","2.2.2",NA,"R (>= 2.10), ggplot2 (>= 3.5.0)","dplyr, ggforce (>= 0.3.1), grid, igraph (>= 1.0.0), scales,
+MASS, ggrepel, utils, stats, viridis, rlang, tidygraph,
+graphlayouts (>= 1.1.0), withr, cli, vctrs, lifecycle, memoise","cpp11"
+"ggrepel","0.9.8",NA,"R (>= 4.1.0), ggplot2 (>= 3.5.2)","grid, Rcpp, rlang (>= 1.1.6), S7, scales (>= 1.4.0), withr (>=
+3.0.2)","Rcpp"
+"ggtangle","0.1.2",NA,"R (>= 4.1.0)","ggfun (>= 0.1.7), ggplot2, ggrepel, igraph, rlang, yulab.utils
+(>= 0.2.2)",NA
+"ggtree","4.2.0",NA,"R (>= 4.2.0)","ape, aplot, cli, dplyr, ggfun (>= 0.1.7), ggiraph (>= 0.9.1),
+ggplot2 (>= 4.0.0), grid, magrittr, methods, purrr, rlang,
+scales, stats, tidyr, tidytree (>= 0.4.5), treeio (>= 1.8.0),
+utils, yulab.utils (>= 0.2.3)",NA
+"globals","0.19.1",NA,"R (>= 3.1.2)","codetools",NA
+"glue","1.8.1",NA,"R (>= 4.1)","methods",NA
+"gower","1.0.2",NA,NA,NA,NA
+"gplots","3.3.0",NA,"R (>= 3.0)","gtools, stats, caTools, KernSmooth, methods",NA
+"graphlayouts","1.2.5",NA,"R (>= 3.6.0)","igraph (>= 2.0.0), Rcpp","Rcpp, RcppArmadillo"
+"gridExtra","2.3.1",NA,NA,"gtable, grid, grDevices, graphics, utils",NA
+"gridGraphics","0.5-1",NA,"grid, graphics","grDevices",NA
+"gson","0.2.1",NA,NA,"jsonlite, methods, rlang, stats, utils, yulab.utils (>= 0.0.7)",NA
+"gsubfn","0.7",NA,"proto",NA,NA
+"gtable","0.3.6",NA,"R (>= 4.0)","cli, glue, grid, lifecycle, rlang (>= 1.1.0), stats",NA
+"gtools","3.9.5",NA,"methods, stats, utils",NA,NA
+"hardhat","1.4.3",NA,"R (>= 4.1)","cli (>= 3.6.0), glue (>= 1.6.2), rlang (>= 1.1.0), sparsevctrs
+(>= 0.2.0), tibble (>= 3.2.1), vctrs (>= 0.6.0)",NA
+"hash","2.2.6.4",NA,"R (>= 2.12.0), methods, utils",NA,NA
+"highr","0.12",NA,"R (>= 3.3.0)","xfun (>= 0.18)",NA
+"hms","1.1.4",NA,NA,"cli, lifecycle, methods, pkgconfig, rlang (>= 1.0.2), vctrs
+(>= 0.3.8)",NA
+"htmltools","0.5.9",NA,"R (>= 2.14.1)","base64enc, digest, fastmap (>= 1.1.0), grDevices, rlang (>=
+1.0.0), utils",NA
+"htmlwidgets","1.6.4",NA,NA,"grDevices, htmltools (>= 0.5.7), jsonlite (>= 0.9.16), knitr
+(>= 1.8), rmarkdown, yaml",NA
+"httr","1.4.9",NA,"R (>= 3.6)","curl (>= 5.1.0), jsonlite, mime, openssl (>= 0.8), R6",NA
+"httr2","1.3.0",NA,"R (>= 4.1)","cli (>= 3.0.0), curl (>= 6.4.0), glue, lifecycle, magrittr,
+openssl, R6, rlang (>= 1.3.0), vctrs (>= 0.6.3), withr",NA
+"igraph","2.3.3",NA,"methods, R (>= 3.5.0)","cli, graphics, grDevices, lifecycle, magrittr, Matrix,
+pkgconfig (>= 2.0.0), rlang (>= 1.1.0), stats, utils, vctrs","cpp11 (>= 0.5.0)"
+"ipred","0.9-16",NA,"R (>= 2.10)","rpart (>= 3.1-8), MASS, survival, nnet, class, prodlim",NA
+"isoband","0.3.0",NA,NA,"cli, grid, rlang, utils","cpp11"
+"iterators","1.0.14",NA,"R (>= 2.5.0), utils",NA,NA
+"jquerylib","0.1.4",NA,NA,"htmltools",NA
+"jsonlite","2.0.0",NA,"methods",NA,NA
+"knitr","1.51",NA,"R (>= 3.6.0)","evaluate (>= 0.15), highr (>= 0.11), methods, tools, xfun (>=
+0.52), yaml (>= 2.1.19)",NA
+"labeling","0.4.3",NA,NA,"stats, graphics",NA
+"lambda.r","1.2.4",NA,"R (>= 3.0.0)","formatR",NA
+"lava","1.9.3",NA,"R (>= 3.5.0)","cli, future.apply, graphics, grDevices, methods, numDeriv,
+progressr, stats, survival, SQUAREM, utils",NA
+"lazyeval","0.2.3",NA,"R (>= 3.1.0)","rlang",NA
+"lifecycle","1.0.5",NA,"R (>= 3.6)","cli (>= 3.4.0), rlang (>= 1.1.0)",NA
+"limma","3.68.4",NA,"R (>= 3.6.0)","grDevices, graphics, stats, utils, methods, statmod",NA
+"listenv","1.0.0",NA,"R (>= 3.1.2)",NA,NA
+"locfit","1.5-9.12",NA,"R (>= 4.1.0)","lattice",NA
+"lubridate","1.9.5",NA,"methods, R (>= 3.2)","generics, timechange (>= 0.4.0)",NA
+"magrittr","2.0.5",NA,"R (>= 3.4.0)",NA,NA
+"mathjaxr","2.0-0",NA,NA,NA,NA
+"matrixStats","1.5.0",NA,"R (>= 3.4.0)",NA,NA
+"mclust","6.1.3",NA,"R (>= 3.0)","stats, utils, graphics, grDevices",NA
+"memoise","2.0.1",NA,NA,"rlang (>= 0.4.10), cachem",NA
+"metadat","1.6-0",NA,"R (>= 4.0.0)","utils, tools, mathjaxr",NA
+"metafor","5.0-1",NA,"R (>= 4.0.0), methods, Matrix, metadat, numDeriv","stats, utils, graphics, grDevices, nlme, mathjaxr, pbapply,
+digest",NA
+"mime","0.13",NA,NA,"tools",NA
+"msigdbr","7.5.1",NA,"R (>= 3.4)","babelgene, dplyr (>= 0.7.0), magrittr, rlang, tibble,
+tidyselect",NA
+"numDeriv","2016.8-1.1",NA,"R (>= 2.11.1)",NA,NA
+"openssl","2.4.2",NA,NA,"askpass",NA
+"org.Hs.eg.db","3.23.1",NA,"R (>= 2.7.0), methods, AnnotationDbi (>= 1.73.0)",NA,NA
+"otel","0.2.0",NA,"R (>= 3.6.0)",NA,NA
+"pROC","1.19.1",NA,"R (>= 2.14)","methods, Rcpp (>= 0.11.1)","Rcpp"
+"parallelly","1.48.0",NA,NA,"parallel, tools, utils",NA
+"patchwork","1.3.2",NA,NA,"ggplot2 (>= 3.0.0), gtable (>= 0.3.6), grid, stats, grDevices,
+utils, graphics, rlang (>= 1.0.0), cli, farver",NA
+"pbapply","1.7-5",NA,"R (>= 3.2.0)","parallel",NA
+"pheatmap","1.0.13",NA,"R (>= 2.0)","grid, RColorBrewer, scales, gtable, stats, grDevices, graphics",NA
+"pillar","1.11.1",NA,NA,"cli (>= 2.3.0), glue, lifecycle, rlang (>= 1.0.2), utf8 (>=
+1.1.0), utils, vctrs (>= 0.5.0)",NA
+"pkgconfig","2.0.3",NA,NA,"utils",NA
+"plotrix","3.8-14",NA,"R (>= 3.5.0)","grDevices, graphics, stats, utils",NA
+"plyr","1.8.9",NA,"R (>= 3.1.0)","Rcpp (>= 0.11.0)","Rcpp"
+"png","0.1-9",NA,"R (>= 2.9.0)",NA,NA
+"polyclip","1.10-7",NA,"R (>= 3.5.0)",NA,NA
+"prettyunits","1.2.0",NA,"R(>= 2.10)",NA,NA
+"processx","3.9.0",NA,"R (>= 3.4.0)","ps (>= 1.9.3), R6, utils",NA
+"prodlim","2026.03.11",NA,"R (>= 4.1.0)","Rcpp (>= 0.11.5), stats, rlang, data.table, grDevices,
+ggplot2, scales, graphics, diagram, survival, KernSmooth, lava","Rcpp"
+"progress","1.2.3",NA,"R (>= 3.6)","crayon, hms, prettyunits, R6",NA
+"progressr","1.0.0",NA,"R (>= 3.5.0)","digest, utils",NA
+"proto","1.0.0",NA,NA,NA,NA
+"proxy","0.4-29",NA,"R (>= 3.4.0)","stats, utils",NA
+"ps","1.9.3",NA,"R (>= 3.4)","utils",NA
+"purrr","1.2.2",NA,"R (>= 4.1)","cli (>= 3.6.1), lifecycle (>= 1.0.3), magrittr (>= 1.5.0),
+rlang (>= 1.1.1), vctrs (>= 0.6.3)","cli"
+"qvalue","2.44.0",NA,"R(>= 2.10)","splines, ggplot2, grid, reshape2",NA
+"randomForest","4.7-1.2",NA,"R (>= 4.1.0), stats",NA,NA
+"rappdirs","0.3.4",NA,"R (>= 4.1)",NA,NA
+"readr","2.2.0",NA,"R (>= 4.1)","cli, clipr, crayon, glue, hms (>= 0.4.1), lifecycle, methods,
+R6, rlang, tibble, utils, vroom (>= 1.7.0), withr","cpp11, tzdb (>= 0.1.1)"
+"recipes","1.4.0",NA,"dplyr (>= 1.1.0), R (>= 4.1)","cli, clock (>= 0.6.1), generics (>= 0.1.2), glue, gower,
+hardhat (>= 1.4.1), ipred (>= 0.9-12), lifecycle (>= 1.0.3),
+lubridate (>= 1.8.0), magrittr, Matrix, purrr (>= 1.0.0), rlang
+(>= 1.1.0), sparsevctrs (>= 0.3.3), stats, tibble, tidyr (>=
+1.0.0), tidyselect (>= 1.2.0), timeDate, utils, vctrs (>=
+0.5.0), withr",NA
+"reshape2","1.4.5",NA,"R (>= 3.1)","plyr (>= 1.8.1), Rcpp, stringr","Rcpp"
+"rlang","1.3.0",NA,"R (>= 4.0.0)","utils",NA
+"rmarkdown","2.32",NA,"R (>= 3.0)","bslib (>= 0.2.5.1), evaluate (>= 0.13), fontawesome (>=
+0.5.0), htmltools (>= 0.5.1), jquerylib, jsonlite, knitr (>=
+1.50), methods, tinytex (>= 0.31), tools, utils, xfun (>=
+0.36), yaml (>= 2.1.19)",NA
+"sass","0.4.10",NA,NA,"fs (>= 1.2.4), rlang (>= 0.4.10), htmltools (>= 0.5.1), R6,
+rappdirs",NA
+"scales","1.4.0",NA,"R (>= 4.1)","cli, farver (>= 2.0.3), glue, labeling, lifecycle, R6,
+RColorBrewer, rlang (>= 1.1.0), viridisLite",NA
+"scatterpie","0.2.6",NA,"R (>= 4.1.0), ggplot2","ggforce, rlang, ggfun, stats, tidyr, dplyr, utils, yulab.utils
+(>= 0.1.6)",NA
+"shape","1.4.6.1",NA,"R (>= 2.01)","stats, graphics, grDevices",NA
+"snow","0.4-4",NA,"R (>= 2.13.1), utils",NA,NA
+"sparsevctrs","0.3.6",NA,"R (>= 4.1)","cli (>= 3.4.0), rlang (>= 1.1.0), vctrs",NA
+"sqldf","0.4-12",NA,"R (>= 3.1.0), gsubfn (>= 0.6), proto, RSQLite","DBI, chron",NA
+"statmod","1.5.2",NA,"R (>= 3.0.0)","stats, graphics",NA
+"stringi","1.8.9",NA,"R (>= 3.4)","tools, utils, stats",NA
+"stringr","1.6.0",NA,"R (>= 4.1.0)","cli, glue (>= 1.6.1), lifecycle (>= 1.0.3), magrittr, rlang
+(>= 1.0.0), stringi (>= 1.5.3), vctrs (>= 0.4.0)",NA
+"sys","3.4.3",NA,NA,NA,NA
+"systemfonts","1.3.2",NA,"R (>= 3.2.0)","base64enc, grid, jsonlite, lifecycle, tools, utils","cpp11 (>= 0.2.1)"
+"tibble","3.3.1",NA,"R (>= 3.4.0)","cli, lifecycle (>= 1.0.0), magrittr, methods, pillar (>=
+1.8.1), pkgconfig, rlang (>= 1.0.2), utils, vctrs (>= 0.5.0)",NA
+"tidydr","0.0.6",NA,NA,"cluster, ggfun, ggplot2, grid, rlang, stats, utils",NA
+"tidygraph","1.3.1",NA,NA,"cli, dplyr (>= 0.8.5), igraph (>= 2.0.0), lifecycle, magrittr,
+pillar, R6, rlang, stats, tibble, tidyr, tools, utils","cpp11"
+"tidyr","1.3.2",NA,"R (>= 4.1.0)","cli (>= 3.4.1), dplyr (>= 1.1.0), glue, lifecycle (>= 1.0.3),
+magrittr, purrr (>= 1.0.1), rlang (>= 1.1.1), stringr (>=
+1.5.0), tibble (>= 2.1.1), tidyselect (>= 1.2.1), utils, vctrs
+(>= 0.5.2)","cpp11 (>= 0.4.0)"
+"tidyselect","1.2.1",NA,"R (>= 3.4)","cli (>= 3.3.0), glue (>= 1.3.0), lifecycle (>= 1.0.3), rlang
+(>= 1.0.4), vctrs (>= 0.5.2), withr",NA
+"tidytree","0.4.8",NA,"R (>= 3.4.0)","ape, dplyr, lazyeval, magrittr, methods, rlang, tibble, tidyr,
+tidyselect, yulab.utils (>= 0.1.5), pillar, cli",NA
+"timeDate","4052.112",NA,"R (>= 3.6.0), methods","graphics, utils, stats",NA
+"timechange","0.4.0",NA,"R (>= 3.3)",NA,"cpp11 (>= 0.2.7)"
+"tinytex","0.60",NA,NA,"xfun (>= 0.48)",NA
+"treeio","1.36.1",NA,"R (>= 4.1.0)","ape, dplyr, jsonlite, magrittr, methods, rlang, stats, tibble,
+tidytree (>= 0.4.5), utils, yulab.utils (>= 0.1.6)",NA
+"tweenr","2.0.3",NA,"R (>= 3.2.0)","farver, magrittr, rlang, vctrs","cpp11 (>= 0.4.2)"
+"tzdb","0.5.0",NA,"R (>= 4.0.0)",NA,"cpp11 (>= 0.5.2)"
+"utf8","1.2.6",NA,"R (>= 2.10)",NA,NA
+"vctrs","0.7.3",NA,"R (>= 4.0.0)","cli (>= 3.4.0), glue, lifecycle (>= 1.0.3), rlang (>= 1.1.7)",NA
+"viridis","0.6.5",NA,"R (>= 2.10), viridisLite (>= 0.4.0)","ggplot2 (>= 1.0.1), gridExtra",NA
+"viridisLite","0.4.3",NA,"R (>= 2.10)",NA,NA
+"vroom","1.7.1",NA,"R (>= 4.1)","bit64, cli (>= 3.2.0), crayon, glue, hms, lifecycle (>=
+1.0.3), methods, rlang (>= 1.1.0), stats, tibble (>= 2.0.0),
+tidyselect, tzdb (>= 0.1.1), vctrs (>= 0.2.0), withr","cpp11 (>= 0.2.0), progress (>= 1.2.3), tzdb (>= 0.1.1)"
+"withr","3.0.3",NA,"R (>= 3.6.0)","graphics, grDevices",NA
+"xfun","0.60",NA,"R (>= 3.2.0)","grDevices, stats, tools",NA
+"yaml","2.3.12",NA,NA,NA,NA
+"yulab.utils","0.2.5",NA,"R (>= 4.2.0)","cli, digest, fs, methods, rappdirs, rlang, tools, utils",NA
+"KernSmooth","2.23-26","recommended","R (>= 2.5.0), stats",NA,NA
+"MASS","7.3-65","recommended","R (>= 4.4.0), grDevices, graphics, stats, utils","methods",NA
+"Matrix","1.7-5","recommended","R (>= 4.4), methods","grDevices, graphics, grid, lattice, stats, utils",NA
+"base","4.6.1","base",NA,NA,NA
+"boot","1.3-32","recommended","R (>= 3.0.0), graphics, stats",NA,NA
+"class","7.3-23","recommended","R (>= 3.0.0), stats, utils","MASS",NA
+"cluster","2.1.8.2","recommended","R (>= 3.5.0)","graphics, grDevices, stats, utils",NA
+"codetools","0.2-20","recommended","R (>= 2.1)",NA,NA
+"compiler","4.6.1","base",NA,NA,NA
+"datasets","4.6.1","base",NA,NA,NA
+"foreign","0.8-91","recommended","R (>= 4.0.0)","methods, utils, stats",NA
+"grDevices","4.6.1","base",NA,NA,NA
+"graphics","4.6.1","base",NA,"grDevices",NA
+"grid","4.6.1","base",NA,"grDevices, utils",NA
+"lattice","0.22-9","recommended","R (>= 4.0.0)","grid, grDevices, graphics, stats, utils",NA
+"methods","4.6.1","base",NA,"utils, stats",NA
+"mgcv","1.9-4","recommended","R (>= 4.4.0), nlme (>= 3.1-64)","methods, stats, graphics, Matrix, splines, utils",NA
+"nlme","3.1-169","recommended","R (>= 3.6.0)","graphics, stats, utils, lattice",NA
+"nnet","7.3-20","recommended","R (>= 3.0.0), stats, utils",NA,NA
+"parallel","4.6.1","base",NA,"tools, compiler",NA
+"rpart","4.1.27","recommended","R (>= 2.15.0), graphics, stats, grDevices",NA,NA
+"spatial","7.3-18","recommended","R (>= 3.0.0), graphics, stats, utils",NA,NA
+"splines","4.6.1","base",NA,"graphics, stats",NA
+"stats","4.6.1","base",NA,"utils, grDevices, graphics",NA
+"stats4","4.6.1","base",NA,"graphics, methods, stats",NA
+"survival","3.8-6","recommended","R (>= 3.5.0)","graphics, Matrix, methods, splines, stats, utils",NA
+"tcltk","4.6.1","base",NA,"utils",NA
+"tools","4.6.1","base",NA,NA,NA
+"utils","4.6.1","base",NA,NA,NA

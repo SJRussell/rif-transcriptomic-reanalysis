@@ -1,0 +1,7 @@
+{
+  "samples": 22,
+  "genes": 78691,
+  "pipeline_sha256": "c31fec5c652048cbc735927c27b07c46b2c4a8f0004bf2eec38ba5bd72db7645",
+  "container_sha256": "cbe683af366765873a4d8135e797d6f9358970495bc9ed9db79cfef359448d2d",
+  "completed_utc": "2026-09-09T01:10:36.556719+00:00"
+}

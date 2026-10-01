@@ -1,0 +1,2 @@
+"cohort","program","n_rif","n_control","AUC","CI_low","CI_high","p","up_measured","down_measured"
+"GSE207362_external","frozen_corrected_discovery_50_gene_panel",12,26,0.349358974358974,0.16025641025641,0.55448717948718,0.139950714126434,24,24

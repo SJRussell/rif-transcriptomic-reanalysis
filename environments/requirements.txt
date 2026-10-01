@@ -1,0 +1,6 @@
+# Observed Python 3.12.14 environment for the preparation scripts and the verifier.
+numpy==2.5.3
+pandas==3.0.1
+scipy==1.18.1
+openpyxl==3.1.5
+threadpoolctl==3.6.0

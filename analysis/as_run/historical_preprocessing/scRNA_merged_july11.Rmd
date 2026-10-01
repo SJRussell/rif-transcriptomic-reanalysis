@@ -1,0 +1,387 @@
+---
+title: "scRNA Aggregation July 11th 2025"
+output: html_notebook
+---
+
+Load libraries
+```{r}
+library(tidyverse)
+library(dplyr)
+library(Seurat)
+library(SeuratObject)
+library(janitor)
+library(harmony)
+library(ggplot2)
+library(R.utils)
+library(plotly)
+library(ggplot2)
+library(pheatmap)
+library(DoubletFinder)
+library(scDblFinder)
+library(future.apply)
+library(patchwork) 
+library(Polychrome)
+
+```
+
+STEP 1:READ IN FILES AND MERGE INTO 1
+Read RDS files from PRJNA1141235
+```{r}
+rif1_494<-readRDS("<original_archive>/scRNA_doublets_REMOVED/rif1_494_singlets_july9.rds")
+con1_499<-readRDS("<original_archive>/scRNA_doublets_REMOVED/con1_499_singlets_july9.rds")
+rif2_501<-readRDS("<original_archive>/scRNA_doublets_REMOVED/rif2_501_singlets_july9.rds")
+con2_504<-readRDS("<original_archive>/scRNA_doublets_REMOVED/con2_504_singlets_july9.rds")
+
+rif1_494$id <- "PRJNA1141235_rif1"
+rif1_494$sample <- "RIF"
+rif1_494$study <- "PRJNA1141235"
+
+rif2_501$id <- "PRJNA1141235_rif2"
+rif2_501$sample <- "RIF"
+rif2_501$study <- "PRJNA1141235"
+
+con1_499$id <- "PRJNA1141235_con1"
+con1_499$sample <- "Control"
+con1_499$study <- "PRJNA1141235"
+
+con2_504$id <- "PRJNA1141235_con2"
+con2_504$sample <- "Control"
+con2_504$study <- "PRJNA1141235"
+
+```
+GSE250130
+```{r}
+GSE250130_con1  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con1_singlets_july9.rds")
+GSE250130_con2  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con2_singlets_july9.rds")
+GSE250130_con3  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con3_singlets_july9.rds")
+GSE250130_con4  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con4_singlets_july9.rds")
+GSE250130_con5  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con5_singlets_july9.rds")
+GSE250130_con6  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con6_singlets_july9.rds")
+GSE250130_con7  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con7_singlets_july9.rds")
+GSE250130_con8  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con8_singlets_july9.rds")
+GSE250130_con9  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con9_singlets_july9.rds")
+GSE250130_con10 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con10_singlets_july9.rds")
+GSE250130_con11 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con11_singlets_july9.rds")
+GSE250130_con12 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_con12_singlets_july9.rds")
+
+GSE250130_rif1  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif1_singlets_july9.rds")
+GSE250130_rif2  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif2_singlets_july9.rds")
+GSE250130_rif3  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif3_singlets_july9.rds")
+GSE250130_rif4  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif4_singlets_july9.rds")
+GSE250130_rif5  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif5_singlets_july9.rds")
+GSE250130_rif6  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif6_singlets_july9.rds")
+GSE250130_rif7  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif7_singlets_july9.rds")
+GSE250130_rif8  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif8_singlets_july9.rds")
+GSE250130_rif9  <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif9_singlets_july9.rds")
+GSE250130_rif10 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE250130_rif10_singlets_july9.rds")
+
+for (i in 1:12) {
+  sample_name <- paste0("GSE250130_con", i)
+  obj <- get(sample_name)
+  obj$id <- sample_name
+  obj$sample <- "Control"
+  obj$study <- "GSE250130"
+  assign(sample_name, obj)
+}
+
+for (i in 1:10) {
+  sample_name <- paste0("GSE250130_rif", i)
+  obj <- get(sample_name)
+  obj$id <- sample_name
+  obj$sample <- "RIF"
+  obj$study <- "GSE250130"
+  assign(sample_name, obj)
+}
+```
+GSE183837
+```{r}
+GSE183837_con1 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_con1_singlets_july9.rds")
+GSE183837_con2 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_con2_singlets_july9.rds")
+GSE183837_con3 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_con3_singlets_july9.rds")
+
+GSE183837_rif1 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_rif1_singlets_july9.rds")
+GSE183837_rif2 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_rif2_singlets_july9.rds")
+GSE183837_rif3 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_rif3_singlets_july9.rds")
+GSE183837_rif4 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_rif4_singlets_july9.rds")
+GSE183837_rif5 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_rif5_singlets_july9.rds")
+GSE183837_rif6 <- readRDS("<original_archive>/scRNA_doublets_REMOVED/GSE183837_rif6_singlets_july9.rds")
+
+for (i in 1:3) {
+  sample_name <- paste0("GSE183837_con", i)
+  obj <- get(sample_name)
+  obj$id <- sample_name
+  obj$sample <- "Control"
+  obj$study <- "GSE183837"
+  assign(sample_name, obj)
+}
+
+for (i in 1:6) {
+  sample_name <- paste0("GSE183837_rif", i)
+  obj <- get(sample_name)
+  obj$id <- sample_name
+  obj$sample <- "RIF"
+  obj$study <- "GSE183837"
+  assign(sample_name, obj)
+}
+```
+
+merge the data
+```{r}
+samples_full <- mget(c(
+  "rif1_494", "rif2_501", "con1_499", "con2_504",
+  paste0("GSE250130_con", 1:12),
+  paste0("GSE250130_rif", 1:10),
+  paste0("GSE183837_con", 1:3),
+  paste0("GSE183837_rif", 1:6)
+))
+
+combined <- merge(
+  x            = samples_full[[1]],
+  y            = samples_full[-1],
+  add.cell.ids = sapply(samples_full, function(x) unique(x$id)),
+  merge.data   = FALSE
+)
+
+#saveRDS(combined, file = "<original_archive>/scRNA_doublets_REMOVED/scRNA_combined_july14.rds")
+
+```
+
+STEP 2: FILTER CELLS
+Read in combined Seurat object
+```{r}
+combined<-readRDS("<original_archive>/scRNA_doublets_REMOVED/scRNA_combined_july14.rds")
+combined$orig.ident <- combined$id
+
+```
+
+filter cells 
+```{r, fig.width=20, fig.height=20}
+combined[["percent.mt"]] <- PercentageFeatureSet(combined, pattern = "^MT-")
+combined <- subset(combined, subset = percent.mt < 10)
+
+VlnPlot(combined, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), group.by = "orig.ident", ncol = 3)
+
+```
+
+subsetting data with conservative thresholds (remove dead cells, doublets, etc)
+```{r, fig.width=20, fig.height=10}
+combined <- subset(
+  combined,
+  subset = nFeature_RNA > 300 &
+           nFeature_RNA < 8000 &
+           percent.mt < 20
+)
+VlnPlot(combined, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), group.by = "orig.ident", ncol = 3)
+
+```
+
+STEP 3: QC
+```{r}
+combined<- NormalizeData(combined)
+combined <- FindVariableFeatures(combined)
+combined <- ScaleData(combined, vars.to.regress = c("nCount_RNA", "percent.mt"))
+combined <- RunPCA(combined)
+
+#save
+#saveRDS(combined, file = "<original_archive>/scRNA_combined_preharmony_july7.rds")
+```
+
+```{r}
+ElbowPlot(combined)
+```
+
+UMAP
+```{r}
+combined<-RunUMAP(combined, dims = 1:20)
+#saveRDS(combined_final, file = "<original_archive>/scRNAcombined_june17.rds")
+```
+
+Visualize
+```{r, fig.width=12, fig.height=10}
+sample_plot<-DimPlot(combined, reduction='umap', group.by='sample')
+study_plot<-DimPlot(combined, reduction='umap', group.by='study')
+id_plot<-DimPlot(combined, reduction = 'umap', group.by = 'id')
+
+sample_plot
+study_plot
+id_plot
+```
+
+STEP 4: RUN HARMONY FOR BATCH CORRECTION
+```{r}
+combined <- RunHarmony(
+  object = combined,
+  group.by.vars = c("study", "id")
+)
+```
+
+Run Umap on batch corrected data
+```{r}
+combined <- RunUMAP(combined, reduction = "harmony", dims = 1:20)
+combined <- FindNeighbors(combined, reduction = "harmony", dims = 1:20)
+combined <- FindClusters(combined, resolution = 0.8)
+```
+
+Visualize harmony clusters ***group the clusters into tighter clusters 
+```{r}
+DimPlot(combined, group.by = "seurat_clusters", label = TRUE, reduction = "umap")
+```
+Cluster labeled plot
+```{r, fig.height=8, fig.width=12}
+combined@meta.data$supercluster <- case_when(
+  combined@meta.data$seurat_clusters %in% c(2, 3, 4, 12, 19, 28, 9, 23, 22, 8, 15, 24, 29, 31) ~ "Group_1_2",
+  combined@meta.data$seurat_clusters %in% c(1, 10, 11, 13, 14, 27, 20)                         ~ "Group_3",
+  combined@meta.data$seurat_clusters %in% c(0, 5, 6, 7, 26, 17, 25)                            ~ "Group_4",
+  TRUE                                                                                        ~ "Other"
+)
+table(combined@meta.data$supercluster)
+
+combined@meta.data$supercluster <- recode(combined@meta.data$supercluster,
+  "Group_1_2" = "Immune and Vascular Cells",
+  "Group_3"   = "Epithelial Cells",
+  "Group_4"   = "Fibroblast Cells"
+)
+
+
+p <- DimPlot(
+  combined,
+  reduction = "umap",
+  group.by = "supercluster",
+  label = TRUE,
+  label.size = 3,
+  repel = TRUE
+) +
+  ggtitle("UMAP with Cell Labelled Clusters") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+#ggsave("UMAP_superclusters.png", p, width = 12, height = 8, dpi = 300)
+
+```
+
+
+```{r, fig.width=14, fig.height=10}
+DimPlot(combined, reduction = "umap", group.by = "id", label = FALSE) + ggtitle("UMAP by ID")
+p<- DimPlot(combined, reduction = "umap", group.by = "sample", label = FALSE) + ggtitle("UMAP by Sample")
+ggsave("UMAP_sample.png", p, width = 12, height = 8, dpi = 300)
+
+DimPlot(combined, reduction = "umap", group.by = "study", label = FALSE) + ggtitle("UMAP by Study")
+```
+
+marker identification
+```{r, fig.height=15, fig.width=15}
+markers <- c(
+  "CLDN5",   # endothelial tight-junction
+  "PECAM1",  # CD31 – endothelial
+  "VWF",     # endothelial
+  "CD14",    # myeloid / monocyte
+  "CD3D",    # T-cell
+  "PTPRC",   # CD45 – pan-leukocyte
+  "KRT18",   # epithelial / urothelial
+  "KRT8",
+  "EPCAM",   # epithelial cell adhesion
+  "HOXA10",  # epithelial (distal nephron)
+  "MME",     # CD10 – epithelial / proximal
+  "DCN"      # decorin – fibroblast / stroma
+)
+
+markers <- markers[markers %in% rownames(combined)]
+if (length(markers) == 0) stop("None of the genes are in the object!")
+
+FeaturePlot(
+  combined,
+  features  = markers,
+  reduction = "umap",
+  pt.size   = 0.4,
+  order     = TRUE,
+  ncol      = 4,
+  cols      = c("lightgrey", "darkred")  # light-to-hot
+) &
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+#ggsave("UMAP_marker_expression.png", width = 14, height = 12, dpi = 300)
+
+```
+
+
+STEP 5: AGGREGATION
+aggregation
+```{r}
+pseudobulk_counts <- AggregateExpression(
+  combined,
+  group.by = "id",      
+  assays = "RNA",
+  slot = "counts",       #raw counts
+  return.seurat = FALSE
+)$RNA
+
+#saveRDS(pseudobulk_counts, file = "pseudobulk_matrix_july14.rds")
+
+```
+make into matrix
+```{r}
+pseudo_dense <- as.matrix(pseudobulk_counts)
+
+```
+
+dataframe
+```{r}
+pseudo_df <- as.data.frame(pseudo_dense)
+pseudo_df <- tibble::rownames_to_column(pseudo_df, var = "GeneSymbol")
+write.csv(pseudo_df, file = "pseudobulk_counts_july15.csv", row.names = FALSE)
+
+```
+
+2D PCA
+```{r}
+# Convert to dense matrix and transpose
+pseudo_t <- t(as.matrix(pseudobulk_counts))
+log_t <- log1p(pseudo_t)
+
+# Create condition labels from sample names
+condition <- ifelse(grepl("con", rownames(log_t), ignore.case = TRUE), "Control", "RIF")
+
+# Run PCA
+pca <- prcomp(log_t, center = TRUE, scale. = TRUE)
+
+# Plot with consistent coloring
+plot(pca$x[,1:2],
+     col = ifelse(condition == "Control", "skyblue", "salmon"),
+     pch = 19,
+     xlab = paste0("PC1 (", round(summary(pca)$importance[2,1]*100, 1), "%)"),
+     ylab = paste0("PC2 (", round(summary(pca)$importance[2,2]*100, 1), "%)"),
+     main = "Pseudobulk PCA by Condition")
+legend("topright", legend = c("Control", "RIF"), col = c("skyblue", "salmon"), pch = 19)
+
+```
+3D PCA
+```{r}
+library(plotly)
+library(htmlwidgets)
+
+# Create a data frame for plotting
+pca_df <- as.data.frame(pca$x[, 1:3])
+pca_df$condition <- condition
+
+# Generate the interactive 3D PCA plot
+#pca_3d_plot <- 
+  plot_ly(
+  data = pca_df,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3,
+  color = ~condition,
+  colors = c("skyblue", "salmon"),
+  type = "scatter3d",
+  mode = "markers"
+) %>%
+  layout(title = "3D PCA of Pseudobulk Samples",
+         scene = list(
+           xaxis = list(title = "PC1"),
+           yaxis = list(title = "PC2"),
+           zaxis = list(title = "PC3")
+         ))
+
+# Save the plot as an interactive HTML file
+#saveWidget(pca_3d_plot, file = "pseudobulk_3d_pca_plot.html")
+
+```

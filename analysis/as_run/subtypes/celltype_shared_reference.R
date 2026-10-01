@@ -1,0 +1,25 @@
+.libPaths(c('<r_library>',.libPaths()))
+suppressPackageStartupMessages({library(edgeR);library(limma)})
+ROOT<-'<workspace>/subtypes_2026-09-08';OLD<-'<workspace>/reanalysis_2026-09-08';OUT<-file.path(ROOT,'celltypes')
+donors<-readRDS(file.path(OLD,'expression/GSE248784_external_shared_reference.rds'))$metadata$sample
+stopifnot(length(donors)==17)
+features<-read.csv(file.path(ROOT,'audit/model_feature_hgnc.csv'))$symbol
+panels<-jsonlite::fromJSON(file.path(OUT,'annotation_protocol.json'))$markers
+sets<-lapply(readRDS(file.path(OLD,'pathways/fixed_programs.rds')),setdiff,y=unique(c(features,unlist(panels))))
+results<-summaries<-list()
+for(file in list.files(OUT,pattern='_primary.rds$',full.names=TRUE)){
+ o<-readRDS(file);ct<-sub('_primary.rds$','',basename(file));if(ct=='Unassigned')next
+ md<-o$metadata[o$metadata$sample%in%donors,];md$group<-factor(tolower(md$condition),levels=c('control','rif'));nn<-as.integer(table(md$group));if(any(nn<5))next
+ mm<-o$counts[,match(md$column,colnames(o$counts)),drop=FALSE];design<-model.matrix(~group,data=md)
+ y<-DGEList(mm);y<-calcNormFactors(y[filterByExpr(y,design=design),,keep.lib.sizes=FALSE]);v<-voom(y,design,plot=FALSE)
+ f<-eBayes(lmFit(v,design),robust=TRUE);tt<-topTable(f,coef=2,number=Inf,sort.by='none');tt$GeneSymbol<-rownames(tt)
+ con<-gzfile(file.path(OUT,'DE',paste0(ct,'_shared_reference.csv.gz')),'wt');write.csv(tt,con,row.names=FALSE);close(con)
+ index<-ids2indices(sets,rownames(v$E));index<-index[lengths(index)>=5];p<-fry(v,index=index,design=design,contrast=2,sort=FALSE)
+ results[[ct]]<-data.frame(celltype=ct,program=rownames(p),n_control=nn[1],n_rif=nn[2],genes=p$NGenes,Direction=p$Direction,p=p$PValue,p_mixed=p$PValue.Mixed)
+ summaries[[ct]]<-data.frame(celltype=ct,n_control=nn[1],n_rif=nn[2],genes=nrow(tt),DE_FDR05=sum(tt$adj.P.Val<=.05))
+ cat('SHARED_REFERENCE',ct,nn,'DE',sum(tt$adj.P.Val<=.05),'\n')
+}
+r<-do.call(rbind,results);r$FDR_global<-p.adjust(r$p,'BH')
+write.csv(r,file.path(OUT,'program_tests_shared_reference.csv'),row.names=FALSE);write.csv(do.call(rbind,summaries),file.path(OUT,'DE_summary_shared_reference.csv'),row.names=FALSE)
+write.csv(data.frame(sample=donors),file.path(OUT,'shared_reference_donors.csv'),row.names=FALSE)
+cat('SHARED_REFERENCE_COMPLETE\n')
